@@ -30,6 +30,7 @@ import {
 import { useAuth } from '@/auth/AuthContext'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateTimeRu } from '@/utils/datetime'
+import { normalizeRuMobilePhone } from '@/utils/normalizeRuMobilePhone'
 import { userDisplayName } from '@/utils/userDisplay'
 
 export const ProfilePage: React.FC = () => {
@@ -236,8 +237,28 @@ export const ProfilePage: React.FC = () => {
                   <Form.Item name="first_name" label="Имя" rules={[{ required: true, message: 'Обязательно' }]}>
                     <Input />
                   </Form.Item>
-                  <Form.Item name="phone" label="Телефон">
-                    <Input placeholder="+7…" />
+                  <Form.Item
+                    name="phone"
+                    label="Мобильный телефон (Россия)"
+                    extra="Можно 7906… или 8906… — сохранится как +7 (906) …"
+                    rules={[
+                      {
+                        validator: async (_, value: string) => {
+                          const t = (value ?? '').trim()
+                          if (!t) {
+                            return Promise.resolve()
+                          }
+                          try {
+                            normalizeRuMobilePhone(t)
+                            return Promise.resolve()
+                          } catch {
+                            return Promise.reject(new Error('Некорректный российский мобильный номер'))
+                          }
+                        },
+                      },
+                    ]}
+                  >
+                    <Input placeholder="79060943936" autoComplete="tel" inputMode="tel" />
                   </Form.Item>
                   <Form.Item name="telegram" label="Telegram">
                     <Input placeholder="@username" />

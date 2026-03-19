@@ -14,6 +14,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.audit_service import write_audit
 from app.services.welcome_email_service import send_welcome_email
+from app.utils.phone_ru import normalize_ru_mobile_phone
 
 log = logging.getLogger(__name__)
 
@@ -133,7 +134,17 @@ async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, d
     if data.last_name is not None:
         user.last_name = data.last_name
     if data.phone is not None:
-        user.phone = data.phone or None
+        trimmed = (data.phone or "").strip()
+        if not trimmed:
+            user.phone = None
+        else:
+            try:
+                user.phone = normalize_ru_mobile_phone(trimmed)
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e) or "Некорректный номер телефона",
+                ) from e
     if data.telegram is not None:
         user.telegram = data.telegram or None
     if data.password is not None:

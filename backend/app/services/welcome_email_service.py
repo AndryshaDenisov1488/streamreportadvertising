@@ -86,17 +86,28 @@ async def send_welcome_email(
             "Ссылку для входа сообщит администратор.</p>"
         )
 
+    cred_box = (
+        '<div style="background:#0d1219;border:1px solid #2a3f5c;border-radius:10px;padding:16px 18px;margin:0 0 14px">'
+        '<p style="margin:0 0 10px;font-size:13px;color:#8b9cb0;text-transform:uppercase;letter-spacing:0.06em">'
+        "Данные для входа</p>"
+        '<p style="margin:0 0 6px;font-size:13px;color:#a8bdd4"><strong>Логин (email)</strong></p>'
+        f'<div style="font-family:Consolas,Menlo,monospace;font-size:15px;color:#e8f0ff;word-break:break-all;'
+        f'margin-bottom:14px">{html.escape(to_email)}</div>'
+        '<p style="margin:0 0 6px;font-size:13px;color:#a8bdd4"><strong>Пароль</strong> (временный)</p>'
+        f'<div style="font-family:Consolas,Menlo,monospace;font-size:15px;color:#e8f0ff;word-break:break-all;'
+        f'letter-spacing:0.02em">{html.escape(plain_password)}</div>'
+        "</div>"
+    )
     inner = (
         '<p style="margin:0 0 14px">Вам открыт доступ к <strong>MainStream Ops</strong> — '
         "учёт эфиров и спонсорских упоминаний.</p>"
         f'<p style="margin:0 0 18px"><strong>Ваша роль:</strong> {html.escape(role_ru)}</p>'
-        "<p style=\"margin:0 0 12px\">Система сгенерировала <strong>временный пароль</strong> "
-        "для первого входа:</p>"
-        f'<div style="background:#0d1219;border:1px solid #2a3f5c;border-radius:8px;padding:14px 18px;'
-        f'font-family:Consolas,Menlo,monospace;font-size:15px;color:#e8f0ff;word-break:break-all;'
-        f'letter-spacing:0.02em">{html.escape(plain_password)}</div>'
-        "<p style=\"margin:16px 0 0\">После входа сначала откроется экран <strong>смены пароля</strong> "
-        "(можно отложить). Затем начнётся короткое <strong>знакомство с панелью</strong>.</p>"
+        f"{cred_box}"
+        "<p style=\"margin:0 0 12px\">Вход выполняется по <strong>email</strong> (логин) и <strong>паролю</strong> "
+        "из блока выше.</p>"
+        "<p style=\"margin:0 0 16px\">После входа сначала откроется экран <strong>смены пароля</strong> "
+        "(можно отложить). Затем начнётся короткое <strong>знакомство с панелью</strong> — там можно указать телефон "
+        "в любом привычном формате, он сохранится единообразно.</p>"
         f"{cta_block}"
         '<p style="margin:22px 0 0;font-size:14px;color:#9fb0c8">С уважением,<br/>команда MainStream</p>'
     )

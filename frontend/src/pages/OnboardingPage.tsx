@@ -20,6 +20,7 @@ import type { UserRole } from '@/api/types'
 import { useAuth } from '@/auth/AuthContext'
 import { BrandLogo } from '@/components/BrandLogo'
 import { OtherRolesHint, PrimaryRoleTraining } from '@/content/onboardingRoleGuides'
+import { normalizeRuMobilePhone } from '@/utils/normalizeRuMobilePhone'
 
 const roleTitle: Record<UserRole, string> = {
   SUPERADMIN: 'Суперадминистратор',
@@ -77,7 +78,7 @@ export const OnboardingPage: React.FC = () => {
 
   const steps = [
     { title: 'Старт', icon: <RocketOutlined /> },
-    { title: 'Имя', icon: <UserOutlined /> },
+    { title: 'Профиль', icon: <UserOutlined /> },
     { title: 'Аватар', icon: <UserOutlined /> },
     { title: 'Роли', icon: <TeamOutlined /> },
   ]
@@ -122,12 +123,17 @@ export const OnboardingPage: React.FC = () => {
             <Form
               form={nameForm}
               layout="vertical"
-              initialValues={{ first_name: user.first_name, last_name: user.last_name }}
+              initialValues={{
+                first_name: user.first_name,
+                last_name: user.last_name,
+                phone: user.phone ?? '',
+              }}
               onFinish={async (v) => {
                 try {
                   await patchProfileRequest({
                     first_name: v.first_name,
                     last_name: v.last_name,
+                    phone: v.phone,
                   })
                   await refreshMe()
                   message.success('Сохранено')
@@ -141,13 +147,40 @@ export const OnboardingPage: React.FC = () => {
                 Как к вам обращаться
               </Typography.Title>
               <Typography.Paragraph type="secondary">
-                Имя и фамилия отображаются в панели и в отчётах. Потом их можно изменить в «Профиль».
+                Имя, фамилия и мобильный телефон (Россия) — отображаются в панели и отчётах. Потом всё можно изменить в
+                «Профиль». Телефон можно ввести как <Typography.Text code>79060943936</Typography.Text>,{' '}
+                <Typography.Text code>89060943936</Typography.Text> или с пробелами — сохранится в едином формате.
               </Typography.Paragraph>
               <Form.Item name="last_name" label="Фамилия" rules={[{ required: true, whitespace: true }]}>
                 <Input autoComplete="family-name" />
               </Form.Item>
               <Form.Item name="first_name" label="Имя" rules={[{ required: true, whitespace: true }]}>
                 <Input autoComplete="given-name" />
+              </Form.Item>
+              <Form.Item
+                name="phone"
+                label="Мобильный телефон"
+                rules={[
+                  { required: true, message: 'Укажите телефон' },
+                  {
+                    validator: async (_, value: string) => {
+                      const t = (value ?? '').trim()
+                      if (!t) {
+                        return Promise.reject(new Error('Укажите телефон'))
+                      }
+                      try {
+                        normalizeRuMobilePhone(t)
+                        return Promise.resolve()
+                      } catch {
+                        return Promise.reject(
+                          new Error('Нужен российский мобильный: с 7, 8 или 9 (10 или 11 цифр)'),
+                        )
+                      }
+                    },
+                  },
+                ]}
+              >
+                <Input placeholder="Например 79060943936 или 8 906 094-39-36" autoComplete="tel" inputMode="tel" />
               </Form.Item>
               <Space wrap>
                 <Button onClick={() => setStep(0)}>Назад</Button>
