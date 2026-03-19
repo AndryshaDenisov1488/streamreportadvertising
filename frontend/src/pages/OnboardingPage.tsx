@@ -3,7 +3,7 @@ import {
   App as AntApp,
   Button,
   Card,
-  Collapse,
+  Divider,
   Form,
   Input,
   Space,
@@ -19,32 +19,12 @@ import { patchProfileRequest, uploadAvatarRequest } from '@/api/client'
 import type { UserRole } from '@/api/types'
 import { useAuth } from '@/auth/AuthContext'
 import { BrandLogo } from '@/components/BrandLogo'
+import { OtherRolesHint, PrimaryRoleTraining } from '@/content/onboardingRoleGuides'
 
-const roleCopy: Record<
-  UserRole,
-  { title: string; lines: string[] }
-> = {
-  SUPERADMIN: {
-    title: 'Суперадминистратор',
-    lines: [
-      'Полный доступ: пользователи, аудит, продуктовая аналитика, все события и эфиры.',
-      'Раздел «Администрирование» — создание учёток, приглашения, просмотр журнала действий.',
-    ],
-  },
-  STREAM_MANAGER: {
-    title: 'Менеджер стримов',
-    lines: [
-      'Создание и настройка событий (турниры, дни, ссылки на стримы, назначение операторов по дням).',
-      'Запуск и остановка эфира, чек-лист, просмотр упоминаний спонсоров.',
-    ],
-  },
-  OPERATOR: {
-    title: 'Оператор',
-    lines: [
-      'Работа в назначенных днях турнира: открыть эфир, отмечать таймкоды упоминаний, вести чек-лист.',
-      'В календаре видны только события, где вас назначили.',
-    ],
-  },
+const roleTitle: Record<UserRole, string> = {
+  SUPERADMIN: 'Суперадминистратор',
+  STREAM_MANAGER: 'Менеджер стримов',
+  OPERATOR: 'Оператор',
 }
 
 export const OnboardingPage: React.FC = () => {
@@ -66,7 +46,6 @@ export const OnboardingPage: React.FC = () => {
   }
 
   const currentRole = user.role as UserRole
-  const rc = roleCopy[currentRole]
 
   const handleSkipTour = async () => {
     setFinishing(true)
@@ -113,7 +92,7 @@ export const OnboardingPage: React.FC = () => {
           'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #070b10',
       }}
     >
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+      <div style={{ maxWidth: step === 3 ? 760 : 640, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <BrandLogo height={36} />
           <Button type="link" onClick={() => void handleSkipTour()} disabled={finishing}>
@@ -219,61 +198,18 @@ export const OnboardingPage: React.FC = () => {
           {step === 3 && (
             <div>
               <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
-                Роли в системе
+                Как пользоваться панелью
               </Typography.Title>
-              <Typography.Paragraph type="secondary">
-                Ваша текущая роль: <Tag color="blue">{rc.title}</Tag>
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                Ваша роль: <Tag color="blue">{roleTitle[currentRole]}</Tag> — ниже пошаговая инструкция под неё (без
+                повторов).
               </Typography.Paragraph>
-              <Collapse
-                bordered={false}
-                style={{ background: 'transparent' }}
-                items={[
-                  {
-                    key: 'mine',
-                    label: (
-                      <span>
-                        <strong>Ваша роль</strong> — {rc.title}
-                      </span>
-                    ),
-                    children: (
-                      <ul style={{ margin: 0, paddingLeft: 20, color: 'rgba(255,255,255,0.75)' }}>
-                        {rc.lines.map((line, i) => (
-                          <li key={i} style={{ marginBottom: 8 }}>
-                            {line}
-                          </li>
-                        ))}
-                      </ul>
-                    ),
-                  },
-                  {
-                    key: 'op',
-                    label: 'Оператор',
-                    children: (
-                      <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                        {roleCopy.OPERATOR.lines.join(' ')}
-                      </Typography.Paragraph>
-                    ),
-                  },
-                  {
-                    key: 'mgr',
-                    label: 'Менеджер стримов',
-                    children: (
-                      <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                        {roleCopy.STREAM_MANAGER.lines.join(' ')}
-                      </Typography.Paragraph>
-                    ),
-                  },
-                  {
-                    key: 'adm',
-                    label: 'Суперадминистратор',
-                    children: (
-                      <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                        {roleCopy.SUPERADMIN.lines.join(' ')}
-                      </Typography.Paragraph>
-                    ),
-                  },
-                ]}
-              />
+              <PrimaryRoleTraining role={currentRole} />
+              <Divider style={{ borderColor: '#1f2a3a', margin: '20px 0' }} />
+              <Typography.Text strong style={{ display: 'block', marginBottom: 8, color: 'rgba(255,255,255,0.75)' }}>
+                Остальные роли — кратко
+              </Typography.Text>
+              <OtherRolesHint currentRole={currentRole} />
               <Space wrap style={{ marginTop: 24 }}>
                 <Button onClick={() => setStep(2)}>Назад</Button>
                 <Button type="primary" size="large" loading={finishing} onClick={() => void handleFinish()}>
