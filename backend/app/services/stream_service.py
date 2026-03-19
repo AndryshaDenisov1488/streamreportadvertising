@@ -352,6 +352,12 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
 
 async def delete_stream_event(session: AsyncSession, *, actor: User, stream_id: UUID) -> None:
     ev = await _get_event(session, stream_id)
+    active_ids = await _active_broadcast_ids(session)
+    if stream_id in active_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нельзя удалить событие с активным эфиром. Сначала остановите эфир.",
+        )
     before = {"title": ev.title}
     await session.delete(ev)
     await write_audit(

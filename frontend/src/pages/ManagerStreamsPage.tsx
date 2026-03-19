@@ -52,7 +52,7 @@ const buildReportPath = (
 }
 
 export const ManagerStreamsPage: React.FC = () => {
-  const { message } = AntApp.useApp()
+  const { message, modal } = AntApp.useApp()
   const qc = useQueryClient()
   const nav = useNavigate()
   const screens = Grid.useBreakpoint()
@@ -156,6 +156,17 @@ export const ManagerStreamsPage: React.FC = () => {
     onError: (e: Error) => message.error(e.message),
   })
 
+  const deleteStreamMut = useMutation({
+    mutationFn: async (id: string) => {
+      await apiFetch(`/stream-events/${id}`, { method: 'DELETE' })
+    },
+    onSuccess: async () => {
+      message.success('Событие удалено')
+      await qc.invalidateQueries({ queryKey: ['streams'] })
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
   const columns: ColumnsType<StreamEventListOut> = [
     { title: 'Название', dataIndex: 'title', key: 'title' },
     {
@@ -189,7 +200,7 @@ export const ManagerStreamsPage: React.FC = () => {
     {
       title: '',
       key: 'actions',
-      width: 220,
+      width: 280,
       render: (_, r) => (
         <Space wrap size="small">
           <Link to={`/manager/${r.id}`}>
@@ -205,6 +216,30 @@ export const ManagerStreamsPage: React.FC = () => {
             }}
           >
             В шаблон
+          </Button>
+          <Button
+            type="link"
+            danger
+            icon={<DeleteOutlined />}
+            loading={deleteStreamMut.isPending}
+            onClick={() => {
+              if (r.has_active_broadcast) {
+                message.warning('Сначала остановите активный эфир — иначе удаление заблокировано')
+                return
+              }
+              modal.confirm({
+                title: 'Удалить событие?',
+                content: `«${r.title}»: будут удалены дни, записи эфиров и упоминания. Действие необратимо.`,
+                okText: 'Удалить',
+                okButtonProps: { danger: true },
+                cancelText: 'Отмена',
+                onOk: async () => {
+                  await deleteStreamMut.mutateAsync(r.id)
+                },
+              })
+            }}
+          >
+            Удалить
           </Button>
         </Space>
       ),
