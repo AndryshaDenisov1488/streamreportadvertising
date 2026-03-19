@@ -8,11 +8,5 @@ export const RoleHome: React.FC = () => {
   if (!user) {
     return <Navigate to="/login" replace />
   }
-  if (user.role === 'OPERATOR') {
-    return <Navigate to="/operator" replace />
-  }
-  if (user.role === 'STREAM_MANAGER') {
-    return <Navigate to="/manager" replace />
-  }
-  return <Navigate to="/admin" replace />
+  return <Navigate to="/dashboard" replace />
 }

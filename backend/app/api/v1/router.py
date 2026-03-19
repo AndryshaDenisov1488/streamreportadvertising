@@ -1,9 +1,26 @@
 from fastapi import APIRouter
 
-from app.api.v1 import audit, auth, mentions, notifications, product_analytics, reports, stats, stream_events, users, ws
+from app.api.v1 import (
+    audit,
+    auth,
+    dashboard,
+    event_templates,
+    mentions,
+    notifications,
+    product_analytics,
+    profile,
+    reports,
+    stats,
+    stream_events,
+    users,
+    ws,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router)
+api_router.include_router(profile.router)
+api_router.include_router(dashboard.router)
+api_router.include_router(event_templates.router)
 api_router.include_router(users.router)
 api_router.include_router(stream_events.router)
 api_router.include_router(mentions.router)

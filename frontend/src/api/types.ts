@@ -6,10 +6,42 @@ export type UserOut = {
   first_name: string
   last_name: string
   /** «Фамилия Имя», для обращения в интерфейсе */
-  display_name: string
+  display_name?: string
+  phone?: string | null
+  telegram?: string | null
+  avatar_url?: string | null
   role: UserRole
   is_active: boolean
   created_at: string
+}
+
+export type DashboardSummaryOut = {
+  role: string
+  title: string
+  cards: { key: string; title: string; value: string | number; hint: string }[]
+}
+
+export type SessionOut = {
+  id: string
+  created_at: string
+  expires_at: string
+  user_agent: string | null
+  is_current: boolean
+}
+
+export type StreamEventTemplateOut = {
+  id: string
+  name: string
+  title: string
+  duration_days: number
+  created_at: string
+}
+
+export type DayAssignmentOut = {
+  day_index: number
+  operator_id: string
+  operator_display_name: string
+  operator_email: string
 }
 
 export type StreamEventListOut = {
@@ -18,8 +50,10 @@ export type StreamEventListOut = {
   start_date: string
   duration_days: number
   locked_by_user_id: string | null
-  /** Фамилия Имя того, кто взял событие в работу */
+  /** Устар.: один оператор; при нескольких — assignment_summary */
   locked_by_display_name: string | null
+  assignment_summary: string | null
+  has_slot_for_me: boolean
   has_active_broadcast: boolean
   created_at: string
 }
@@ -58,6 +92,7 @@ export type StreamEventDetailOut = {
   duration_days: number
   locked_by_user_id: string | null
   locked_by_display_name: string | null
+  day_assignments: DayAssignmentOut[]
   days: StreamDayOut[]
   active_broadcasts: BroadcastSessionOut[]
   created_at: string

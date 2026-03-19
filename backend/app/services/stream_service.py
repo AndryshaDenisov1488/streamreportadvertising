@@ -1,17 +1,26 @@
+from collections import defaultdict
 from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.timezone import add_seconds_to_start, format_moscow_datetime, utc_now
 from app.models.enums import AuditActionType, UserRole
-from app.models.stream import BroadcastSession, MentionAdjustment, SponsorMention, StreamDay, StreamEvent
+from app.models.stream import (
+    BroadcastSession,
+    MentionAdjustment,
+    SponsorMention,
+    StreamDay,
+    StreamDayAssignment,
+    StreamEvent,
+)
 from app.models.user import User
 from app.schemas.stream import (
     BroadcastSessionOut,
+    DayAssignmentOut,
     MentionAdjustmentOut,
     SponsorMentionOut,
     StreamDayIn,
@@ -64,6 +73,86 @@ async def _get_event(session: AsyncSession, stream_id: UUID) -> StreamEvent:
     return ev
 
 
+async def _assignment_operator_for_day(
+    session: AsyncSession, stream_id: UUID, day_index: int
+) -> UUID | None:
+    r = await session.execute(
+        select(StreamDayAssignment.operator_id).where(
+            StreamDayAssignment.stream_event_id == stream_id,
+            StreamDayAssignment.day_index == day_index,
+        )
+    )
+    return r.scalar_one_or_none()
+
+
+def _format_days_label(days: list[int]) -> str:
+    days = sorted(days)
+    if len(days) == 1:
+        return str(days[0])
+    if days == list(range(days[0], days[-1] + 1)):
+        return f"{days[0]}–{days[-1]}"
+    return ", ".join(str(d) for d in days)
+
+
+def _assignment_summary_from_pairs(pairs: list[tuple[int, User]]) -> str | None:
+    if not pairs:
+        return None
+    by_op: dict[UUID, list[int]] = defaultdict(list)
+    users: dict[UUID, User] = {}
+    for day_idx, u in pairs:
+        by_op[u.id].append(day_idx)
+        users[u.id] = u
+    parts: list[str] = []
+    for uid in sorted(users.keys(), key=lambda x: str(x)):
+        u = users[uid]
+        parts.append(f"{user_display_name(u)}: дни {_format_days_label(by_op[uid])}")
+    return "; ".join(parts)
+
+
+async def _load_assignment_pairs(
+    session: AsyncSession, stream_ids: list[UUID]
+) -> dict[UUID, list[tuple[int, User]]]:
+    if not stream_ids:
+        return {}
+    q = (
+        select(StreamDayAssignment, User)
+        .join(User, StreamDayAssignment.operator_id == User.id)
+        .where(StreamDayAssignment.stream_event_id.in_(stream_ids))
+        .order_by(StreamDayAssignment.stream_event_id, StreamDayAssignment.day_index)
+    )
+    rows = (await session.execute(q)).all()
+    out: dict[UUID, list[tuple[int, User]]] = defaultdict(list)
+    for a, u in rows:
+        out[a.stream_event_id].append((a.day_index, u))
+    return out
+
+
+async def _day_assignments_out(session: AsyncSession, stream_id: UUID) -> list[DayAssignmentOut]:
+    pairs = (await _load_assignment_pairs(session, [stream_id])).get(stream_id, [])
+    return [
+        DayAssignmentOut(
+            day_index=d,
+            operator_id=u.id,
+            operator_display_name=user_display_name(u),
+            operator_email=u.email,
+        )
+        for d, u in pairs
+    ]
+
+
+async def _sync_legacy_locked_by(session: AsyncSession, ev: StreamEvent) -> None:
+    r = await session.execute(
+        select(StreamDayAssignment.operator_id)
+        .where(StreamDayAssignment.stream_event_id == ev.id)
+        .distinct()
+    )
+    ids = list(r.scalars().all())
+    if len(ids) == 1:
+        ev.locked_by_user_id = ids[0]
+    else:
+        ev.locked_by_user_id = None
+
+
 async def _active_broadcast_ids(session: AsyncSession) -> set[UUID]:
     q = select(BroadcastSession.stream_event_id).where(BroadcastSession.ended_at.is_(None))
     result = await session.execute(q)
@@ -85,16 +174,37 @@ async def _locked_by_display_name(session: AsyncSession, locked_by_user_id: UUID
     return user_display_name(u) if u else None
 
 
-async def list_stream_events(session: AsyncSession) -> list[StreamEventListOut]:
+async def list_stream_events(
+    session: AsyncSession,
+    *,
+    viewer: User | None = None,
+) -> list[StreamEventListOut]:
     active_ids = await _active_broadcast_ids(session)
     result = await session.execute(select(StreamEvent).order_by(StreamEvent.start_date.desc(), StreamEvent.created_at.desc()))
     events = list(result.scalars().all())
+    eids = [e.id for e in events]
+    pairs_by = await _load_assignment_pairs(session, eids)
     lock_ids = {e.locked_by_user_id for e in events if e.locked_by_user_id}
     users_map = await _users_by_ids(session, lock_ids)
     items: list[StreamEventListOut] = []
     for ev in events:
         lock_u = users_map.get(ev.locked_by_user_id) if ev.locked_by_user_id else None
         locked_by_display_name = user_display_name(lock_u) if lock_u else None
+        summary = _assignment_summary_from_pairs(pairs_by.get(ev.id, []))
+        pairs = pairs_by.get(ev.id, [])
+        assigned_days = {d for d, _ in pairs}
+        has_slot = True
+        if viewer is not None:
+            if viewer.role == UserRole.SUPERADMIN:
+                has_slot = True
+            elif not assigned_days:
+                has_slot = True
+            elif any(u.id == viewer.id for _, u in pairs):
+                has_slot = True
+            elif len(assigned_days) < ev.duration_days:
+                has_slot = True
+            else:
+                has_slot = False
         items.append(
             StreamEventListOut(
                 id=ev.id,
@@ -103,6 +213,8 @@ async def list_stream_events(session: AsyncSession) -> list[StreamEventListOut]:
                 duration_days=ev.duration_days,
                 locked_by_user_id=ev.locked_by_user_id,
                 locked_by_display_name=locked_by_display_name,
+                assignment_summary=summary,
+                has_slot_for_me=has_slot,
                 has_active_broadcast=ev.id in active_ids,
                 created_at=ev.created_at,
             )
@@ -114,6 +226,7 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
     ev = await _get_event(session, stream_id)
     ev.days.sort(key=lambda d: d.day_index)
     locked_by_display_name = await _locked_by_display_name(session, ev.locked_by_user_id)
+    day_assignments = await _day_assignments_out(session, stream_id)
     active_broadcasts = [
         BroadcastSessionOut(
             id=b.id,
@@ -134,6 +247,7 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         duration_days=ev.duration_days,
         locked_by_user_id=ev.locked_by_user_id,
         locked_by_display_name=locked_by_display_name,
+        day_assignments=day_assignments,
         days=[StreamDayOut.model_validate(d) for d in ev.days],
         active_broadcasts=active_broadcasts,
         created_at=ev.created_at,
@@ -258,24 +372,72 @@ async def lock_stream(
     actor: User,
     stream_id: UUID,
     assign_user_id: UUID | None,
+    day_indices: list[int] | None,
 ) -> StreamEventDetailOut:
     ev = await _get_event(session, stream_id)
     if actor.role == UserRole.STREAM_MANAGER:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
-    before_lock = ev.locked_by_user_id
-    if actor.role == UserRole.OPERATOR:
-        if ev.locked_by_user_id is not None and ev.locked_by_user_id != actor.id:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Событие занято другим оператором")
-        ev.locked_by_user_id = actor.id
-    elif actor.role == UserRole.SUPERADMIN:
+
+    target_operator_id: UUID
+    if actor.role == UserRole.SUPERADMIN:
         if assign_user_id is not None:
             ures = await session.execute(select(User).where(User.id == assign_user_id))
             target = ures.scalar_one_or_none()
             if not target or target.role != UserRole.OPERATOR:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нужен оператор")
-            ev.locked_by_user_id = assign_user_id
+            target_operator_id = assign_user_id
         else:
-            ev.locked_by_user_id = actor.id
+            target_operator_id = actor.id
+    else:
+        target_operator_id = actor.id
+
+    want_days: list[int]
+    if day_indices is None or len(day_indices) == 0:
+        want_days = list(range(1, ev.duration_days + 1))
+    else:
+        want_days = sorted(set(day_indices))
+        for d in want_days:
+            if d < 1 or d > ev.duration_days:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"День {d} вне длительности события")
+
+    before_lock = ev.locked_by_user_id
+    for d in want_days:
+        cur = await session.execute(
+            select(StreamDayAssignment).where(
+                StreamDayAssignment.stream_event_id == ev.id,
+                StreamDayAssignment.day_index == d,
+            )
+        )
+        row = cur.scalar_one_or_none()
+        if row is not None and row.operator_id != target_operator_id:
+            ures = await session.execute(select(User).where(User.id == row.operator_id))
+            other = ures.scalar_one_or_none()
+            who = user_display_name(other) if other else "оператор"
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"День {d} уже назначен: {who}",
+            )
+
+    for d in want_days:
+        cur = await session.execute(
+            select(StreamDayAssignment).where(
+                StreamDayAssignment.stream_event_id == ev.id,
+                StreamDayAssignment.day_index == d,
+            )
+        )
+        row = cur.scalar_one_or_none()
+        if row is None:
+            session.add(
+                StreamDayAssignment(
+                    stream_event_id=ev.id,
+                    day_index=d,
+                    operator_id=target_operator_id,
+                )
+            )
+        else:
+            row.operator_id = target_operator_id
+
+    await _sync_legacy_locked_by(session, ev)
     await write_audit(
         session,
         user_id=actor.id,
@@ -283,7 +445,11 @@ async def lock_stream(
         entity_type="stream_event",
         entity_id=str(stream_id),
         payload_before={"locked_by": str(before_lock) if before_lock else None},
-        payload_after={"locked_by": str(ev.locked_by_user_id) if ev.locked_by_user_id else None},
+        payload_after={
+            "locked_by": str(ev.locked_by_user_id) if ev.locked_by_user_id else None,
+            "days": want_days,
+            "operator": str(target_operator_id),
+        },
     )
     await session.commit()
     return await get_stream_event_detail(session, stream_id)
@@ -293,11 +459,31 @@ async def unlock_stream(session: AsyncSession, *, actor: User, stream_id: UUID) 
     ev = await _get_event(session, stream_id)
     if actor.role == UserRole.STREAM_MANAGER:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
-    if actor.role == UserRole.OPERATOR:
-        if ev.locked_by_user_id != actor.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Не вы взяли событие в работу")
     prev = ev.locked_by_user_id
-    ev.locked_by_user_id = None
+    if actor.role == UserRole.SUPERADMIN:
+        await session.execute(delete(StreamDayAssignment).where(StreamDayAssignment.stream_event_id == ev.id))
+    else:
+        cnt_r = await session.execute(
+            select(func.count())
+            .select_from(StreamDayAssignment)
+            .where(
+                StreamDayAssignment.stream_event_id == ev.id,
+                StreamDayAssignment.operator_id == actor.id,
+            )
+        )
+        my_days = int(cnt_r.scalar_one() or 0)
+        if my_days == 0 and ev.locked_by_user_id != actor.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="У вас нет назначенных дней на этом событии",
+            )
+        await session.execute(
+            delete(StreamDayAssignment).where(
+                StreamDayAssignment.stream_event_id == ev.id,
+                StreamDayAssignment.operator_id == actor.id,
+            )
+        )
+    await _sync_legacy_locked_by(session, ev)
     await write_audit(
         session,
         user_id=actor.id,
@@ -305,7 +491,7 @@ async def unlock_stream(session: AsyncSession, *, actor: User, stream_id: UUID) 
         entity_type="stream_event",
         entity_id=str(stream_id),
         payload_before={"locked_by": str(prev) if prev else None},
-        payload_after={"locked_by": None},
+        payload_after={"locked_by": str(ev.locked_by_user_id) if ev.locked_by_user_id else None},
     )
     await session.commit()
     return await get_stream_event_detail(session, stream_id)
@@ -316,8 +502,6 @@ def _can_control_broadcast(actor: User, ev: StreamEvent, session_operator_id: UU
         return True
     if actor.role != UserRole.OPERATOR:
         return False
-    if ev.locked_by_user_id != actor.id:
-        return False
     return session_operator_id == actor.id
 
 
@@ -327,9 +511,13 @@ async def start_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID
     ev = await _get_event(session, stream_id)
     if day_index > ev.duration_days:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="День вне длительности события")
+    day_op = await _assignment_operator_for_day(session, stream_id, day_index)
     if actor.role == UserRole.OPERATOR:
-        if ev.locked_by_user_id != actor.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Сначала возьмите событие в работу")
+        if day_op != actor.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Нет назначения на этот день — возьмите соответствующие дни в работу",
+            )
     elif actor.role != UserRole.SUPERADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
     active = await session.execute(
@@ -344,9 +532,10 @@ async def start_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID
     if active.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Эфир для этого дня уже идёт")
     started = utc_now()
-    operator_id = actor.id if actor.role == UserRole.OPERATOR else (ev.locked_by_user_id or actor.id)
-    if actor.role == UserRole.SUPERADMIN and ev.locked_by_user_id:
-        operator_id = ev.locked_by_user_id
+    if actor.role == UserRole.OPERATOR:
+        operator_id = actor.id
+    else:
+        operator_id = day_op or actor.id
     bs = BroadcastSession(
         stream_event_id=stream_id,
         day_index=day_index,

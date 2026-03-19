@@ -26,10 +26,10 @@ router = APIRouter(prefix="/stream-events", tags=["stream-events"])
 
 @router.get("", response_model=list[StreamEventListOut])
 async def list_streams(
-    _: OperatorOrAbove,
+    actor: OperatorOrAbove,
     session: AsyncSession = Depends(get_db),
 ) -> list[StreamEventListOut]:
-    return await stream_service.list_stream_events(session)
+    return await stream_service.list_stream_events(session, viewer=actor)
 
 
 @router.get("/{stream_id}", response_model=StreamEventDetailOut)
@@ -78,7 +78,14 @@ async def lock_stream_route(
     body: StreamLockBody | None = None,
 ) -> StreamEventDetailOut:
     assign = body.assign_user_id if body else None
-    detail = await stream_service.lock_stream(session, actor=actor, stream_id=stream_id, assign_user_id=assign)
+    day_ix = body.day_indices if body else None
+    detail = await stream_service.lock_stream(
+        session,
+        actor=actor,
+        stream_id=stream_id,
+        assign_user_id=assign,
+        day_indices=day_ix,
+    )
     hub: StreamEventHub = request.app.state.ws_hub
     await hub.publish(
         stream_id,

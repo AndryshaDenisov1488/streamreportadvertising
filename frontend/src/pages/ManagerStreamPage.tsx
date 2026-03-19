@@ -26,6 +26,14 @@ import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateTimeRu } from '@/utils/datetime'
 
+const formatElapsed = (totalSec: number) => {
+  const sec = Math.max(0, Math.floor(totalSec))
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
 export const ManagerStreamPage: React.FC = () => {
   const { id } = useParams()
   const streamId = id as string
@@ -162,14 +170,31 @@ export const ManagerStreamPage: React.FC = () => {
                     description={
                       <Space direction="vertical" size={4}>
                         <Typography.Text type="secondary">
-                          Абсолютное (МСК): {item.absolute_moscow_adjusted}
+                          Время: {item.absolute_moscow_adjusted}
                         </Typography.Text>
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          Исходный таймкод: {item.original_timecode}
+                          Таймкод трансляции: {item.original_timecode}
                         </Typography.Text>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          Запись: {formatDateTimeRu(item.created_at)}
-                        </Typography.Text>
+                        {item.adjustments && item.adjustments.length > 0 ? (
+                          <div style={{ marginTop: 8 }}>
+                            <Typography.Text
+                              type="secondary"
+                              style={{ fontSize: 12, display: 'block', marginBottom: 4 }}
+                            >
+                              Лог
+                            </Typography.Text>
+                            {item.adjustments.map((a) => (
+                              <Typography.Text
+                                key={a.id}
+                                type="secondary"
+                                style={{ fontSize: 12, display: 'block' }}
+                              >
+                                Запись: {formatDateTimeRu(a.created_at)} · {formatElapsed(a.previous_adjusted_sec)} →{' '}
+                                {formatElapsed(a.new_adjusted_sec)}
+                              </Typography.Text>
+                            ))}
+                          </div>
+                        ) : null}
                       </Space>
                     }
                   />

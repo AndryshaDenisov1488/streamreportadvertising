@@ -9,6 +9,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token_payload,
     decode_token_safe,
+    hash_password,
     verify_password,
 )
 from app.models.enums import AuditActionType
@@ -32,6 +33,7 @@ async def login_user(
     email: str,
     password: str,
     request_ip: str | None,
+    user_agent: str | None = None,
 ) -> tuple[User, str, str, datetime]:
     user = await authenticate_user(session, email, password)
     if not user:
@@ -42,6 +44,7 @@ async def login_user(
             user_id=user.id,
             jti=jti,
             expires_at=exp,
+            user_agent=(user_agent[:500] if user_agent else None),
         )
     )
     await write_audit(
@@ -84,6 +87,7 @@ async def create_fresh_session(
     *,
     user: User,
     request_ip: str | None,
+    user_agent: str | None = None,
 ) -> tuple[str, str, datetime]:
     """Выдать access + refresh после регистрации по приглашению (и записать LOGIN)."""
     refresh_token, jti, exp = create_refresh_token_payload()
@@ -92,6 +96,7 @@ async def create_fresh_session(
             user_id=user.id,
             jti=jti,
             expires_at=exp,
+            user_agent=(user_agent[:500] if user_agent else None),
         )
     )
     await write_audit(
@@ -137,4 +142,66 @@ async def logout_user(session: AsyncSession, *, user_id: UUID, refresh_token: st
         payload_before=None,
         payload_after=None,
     )
+    await session.commit()
+
+
+async def change_password(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    current_password: str,
+    new_password: str,
+    current_jti: str | None,
+) -> None:
+    result = await session.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+    if not verify_password(current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный текущий пароль")
+    user.password_hash = hash_password(new_password)
+    await session.flush()
+    now = datetime.now(timezone.utc)
+    rt_result = await session.execute(
+        select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+    )
+    for row in rt_result.scalars().all():
+        if current_jti and row.jti == current_jti:
+            continue
+        row.revoked_at = now
+    await write_audit(
+        session,
+        user_id=user_id,
+        action_type=AuditActionType.USER_UPDATE,
+        entity_type="user",
+        entity_id=str(user_id),
+        payload_before=None,
+        payload_after={"password_changed": True},
+    )
+    await session.commit()
+
+
+async def list_active_refresh_tokens(session: AsyncSession, *, user_id: UUID) -> list[RefreshToken]:
+    now = datetime.now(timezone.utc)
+    result = await session.execute(
+        select(RefreshToken)
+        .where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > now,
+        )
+        .order_by(RefreshToken.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def revoke_refresh_session_by_id(session: AsyncSession, *, user_id: UUID, session_id: UUID) -> None:
+    result = await session.execute(
+        select(RefreshToken).where(RefreshToken.id == session_id, RefreshToken.user_id == user_id)
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сессия не найдена")
+    if row.revoked_at is None:
+        row.revoked_at = datetime.now(timezone.utc)
     await session.commit()

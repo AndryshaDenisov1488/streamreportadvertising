@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint, func, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -32,6 +32,29 @@ class StreamEvent(Base):
     broadcast_sessions: Mapped[list["BroadcastSession"]] = relationship(
         "BroadcastSession", back_populates="stream_event", cascade="all, delete-orphan"
     )
+    day_assignments: Mapped[list["StreamDayAssignment"]] = relationship(
+        "StreamDayAssignment", back_populates="stream_event", cascade="all, delete-orphan"
+    )
+
+
+class StreamDayAssignment(Base):
+    """Какой оператор ведёт конкретный день многодневного эфира (уникально по событию и дню)."""
+
+    __tablename__ = "stream_day_assignments"
+    __table_args__ = (
+        UniqueConstraint("stream_event_id", "day_index", name="uq_stream_day_assignment_event_day"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    stream_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stream_events.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    day_index: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    operator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    stream_event: Mapped["StreamEvent"] = relationship("StreamEvent", back_populates="day_assignments")
 
 
 class StreamDay(Base):
@@ -111,3 +134,19 @@ class MentionAdjustment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     mention: Mapped["SponsorMention"] = relationship("SponsorMention", back_populates="adjustments")
+
+
+class StreamEventTemplate(Base):
+    """Шаблон события: название шаблона, заголовок эфира по умолчанию, дни (URL/ключи)."""
+
+    __tablename__ = "stream_event_templates"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    duration_days: Mapped[int] = mapped_column(SmallInteger(), nullable=False)
+    days_json: Mapped[list] = mapped_column(JSONB, nullable=False)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

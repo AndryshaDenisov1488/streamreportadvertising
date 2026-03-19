@@ -113,3 +113,7 @@ pytest -q
 ## Git
 
 Рекомендуемые ветки: `main` (стабильная), `develop` (интеграция), feature-ветки от `develop`.
+
+## Продакшен
+
+Пошаговый выклад на VPS (PostgreSQL, сборка фронта, **systemd** + **nginx** + **Let’s Encrypt**): [docs/DEPLOY_PRODUCTION.md](docs/DEPLOY_PRODUCTION.md).

@@ -63,6 +63,8 @@ async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, d
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "phone": user.phone,
+        "telegram": user.telegram,
         "role": user.role.value,
         "is_active": user.is_active,
     }
@@ -75,6 +77,10 @@ async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, d
         user.first_name = data.first_name
     if data.last_name is not None:
         user.last_name = data.last_name
+    if data.phone is not None:
+        user.phone = data.phone or None
+    if data.telegram is not None:
+        user.telegram = data.telegram or None
     if data.password is not None:
         if len(data.password) < 8:
             raise HTTPException(
@@ -98,6 +104,8 @@ async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, d
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "phone": user.phone,
+            "telegram": user.telegram,
             "role": user.role.value,
             "is_active": user.is_active,
         },

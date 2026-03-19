@@ -18,7 +18,9 @@ from app.models import (  # noqa: F401
     RefreshToken,
     SponsorMention,
     StreamDay,
+    StreamDayAssignment,
     StreamEvent,
+    StreamEventTemplate,
     User,
     UserInvite,
 )

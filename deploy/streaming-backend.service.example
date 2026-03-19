@@ -1,0 +1,25 @@
+# Скопировать в /etc/systemd/system/streaming-backend.service
+# Подставьте: User, пути, порт при необходимости
+#
+# sudo cp deploy/streaming-backend.service.example /etc/systemd/system/streaming-backend.service
+# sudo systemctl daemon-reload
+# sudo systemctl enable --now streaming-backend
+
+[Unit]
+Description=Streaming platform FastAPI (uvicorn)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/streaming/backend
+EnvironmentFile=/opt/streaming/backend/.env
+ExecStart=/opt/streaming/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010 --workers 2
+Restart=on-failure
+RestartSec=5
+
+# Ограничения (по желанию раскомментировать)
+# LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

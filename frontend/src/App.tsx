@@ -2,7 +2,9 @@ import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { DashboardPage } from '@/pages/DashboardPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { ProfilePage } from '@/pages/ProfilePage'
 import { ManagerStreamPage } from '@/pages/ManagerStreamPage'
 import { ManagerStreamsPage } from '@/pages/ManagerStreamsPage'
 import { OperatorEventPage } from '@/pages/OperatorEventPage'
@@ -19,6 +21,22 @@ export const App: React.FC = () => {
         element={
           <ProtectedRoute>
             <RoleHome />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
           </ProtectedRoute>
         }
       />

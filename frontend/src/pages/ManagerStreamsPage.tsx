@@ -1,4 +1,4 @@
-import { DownloadOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, DownloadOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
@@ -18,29 +18,63 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import 'dayjs/locale/ru'
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
-import type { StreamEventListOut } from '@/api/types'
-import { apiFetch } from '@/api/client'
+import type { StreamEventListOut, StreamEventTemplateOut } from '@/api/types'
+import {
+  apiFetch,
+  createTemplateFromEventRequest,
+  deleteEventTemplateRequest,
+  instantiateTemplateRequest,
+  listEventTemplatesRequest,
+} from '@/api/client'
 import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
 
 dayjs.locale('ru')
 
+const buildReportPath = (
+  format: 'docx' | 'csv' | 'xlsx',
+  v: { stream_id?: string; range?: [dayjs.Dayjs, dayjs.Dayjs] },
+) => {
+  const params = new URLSearchParams()
+  if (v.stream_id) {
+    params.set('stream_id', v.stream_id)
+  }
+  if (v.range?.[0] && v.range?.[1]) {
+    params.set('date_from', v.range[0].format('YYYY-MM-DD'))
+    params.set('date_to', v.range[1].format('YYYY-MM-DD'))
+  }
+  const qs = params.toString()
+  const ext = format === 'docx' ? 'export.docx' : format === 'csv' ? 'export.csv' : 'export.xlsx'
+  return `/reports/${ext}${qs ? `?${qs}` : ''}`
+}
+
 export const ManagerStreamsPage: React.FC = () => {
   const { message } = AntApp.useApp()
   const qc = useQueryClient()
+  const nav = useNavigate()
   const screens = Grid.useBreakpoint()
   const isNarrow = !screens.md
   const [open, setOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
+  const [tplNameOpen, setTplNameOpen] = useState(false)
+  const [tplStreamId, setTplStreamId] = useState<string | null>(null)
+  const [instantiateOpen, setInstantiateOpen] = useState(false)
   const [createForm] = Form.useForm()
   const [reportForm] = Form.useForm()
+  const [tplNameForm] = Form.useForm()
+  const [instantiateForm] = Form.useForm()
 
   const { data, isLoading } = useQuery({
     queryKey: ['streams'],
     queryFn: async () => (await apiFetch('/stream-events')) as StreamEventListOut[],
+  })
+
+  const { data: templates, isLoading: tplLoading } = useQuery({
+    queryKey: ['stream-event-templates'],
+    queryFn: listEventTemplatesRequest,
   })
 
   const createMut = useMutation({
@@ -70,30 +104,57 @@ export const ManagerStreamsPage: React.FC = () => {
     onError: (e: Error) => message.error(e.message),
   })
 
-  const handleExport = async () => {
+  const downloadExport = async (format: 'docx' | 'csv' | 'xlsx') => {
     const v = reportForm.getFieldsValue() as {
       stream_id?: string
       range?: [dayjs.Dayjs, dayjs.Dayjs]
     }
-    const params = new URLSearchParams()
-    if (v.stream_id) {
-      params.set('stream_id', v.stream_id)
-    }
-    if (v.range?.[0] && v.range?.[1]) {
-      params.set('date_from', v.range[0].format('YYYY-MM-DD'))
-      params.set('date_to', v.range[1].format('YYYY-MM-DD'))
-    }
-    const qs = params.toString()
-    const path = `/reports/export.docx${qs ? `?${qs}` : ''}`
+    const path = buildReportPath(format, v)
     const blob = (await apiFetch(path)) as Blob
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'mentions_report.docx'
+    a.download =
+      format === 'docx' ? 'mentions_report.docx' : format === 'csv' ? 'mentions_report.csv' : 'mentions_report.xlsx'
     a.click()
     URL.revokeObjectURL(url)
     message.success('Файл скачан')
   }
+
+  const saveTplMut = useMutation({
+    mutationFn: async ({ streamId, name }: { streamId: string; name: string }) =>
+      createTemplateFromEventRequest(streamId, name),
+    onSuccess: async () => {
+      message.success('Шаблон сохранён')
+      setTplNameOpen(false)
+      setTplStreamId(null)
+      tplNameForm.resetFields()
+      await qc.invalidateQueries({ queryKey: ['stream-event-templates'] })
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
+  const delTplMut = useMutation({
+    mutationFn: deleteEventTemplateRequest,
+    onSuccess: async () => {
+      message.success('Шаблон удалён')
+      await qc.invalidateQueries({ queryKey: ['stream-event-templates'] })
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
+  const instMut = useMutation({
+    mutationFn: async (values: { template_id: string; start_date: dayjs.Dayjs }) =>
+      instantiateTemplateRequest(values.template_id, values.start_date.format('YYYY-MM-DD')),
+    onSuccess: async (detail) => {
+      message.success('Событие создано из шаблона')
+      setInstantiateOpen(false)
+      instantiateForm.resetFields()
+      await qc.invalidateQueries({ queryKey: ['streams'] })
+      nav(`/manager/${detail.id}`)
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
 
   const columns: ColumnsType<StreamEventListOut> = [
     { title: 'Название', dataIndex: 'title', key: 'title' },
@@ -114,11 +175,13 @@ export const ManagerStreamsPage: React.FC = () => {
             {r.has_active_broadcast ? 'Эфир активен' : 'Нет эфира'}
           </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {r.locked_by_user_id
-              ? r.locked_by_display_name
-                ? `В работе: ${r.locked_by_display_name}`
-                : 'В работе у оператора'
-              : 'Свободно'}
+            {r.assignment_summary
+              ? r.assignment_summary
+              : r.locked_by_user_id
+                ? r.locked_by_display_name
+                  ? `В работе: ${r.locked_by_display_name}`
+                  : 'В работе у оператора'
+                : 'Свободно'}
           </Typography.Text>
         </Space>
       ),
@@ -126,11 +189,55 @@ export const ManagerStreamsPage: React.FC = () => {
     {
       title: '',
       key: 'actions',
-      width: 160,
+      width: 220,
       render: (_, r) => (
-        <Link to={`/manager/${r.id}`}>
-          <Button type="link">Подробнее</Button>
-        </Link>
+        <Space wrap size="small">
+          <Link to={`/manager/${r.id}`}>
+            <Button type="link">Подробнее</Button>
+          </Link>
+          <Button
+            type="link"
+            icon={<SaveOutlined />}
+            onClick={() => {
+              setTplStreamId(r.id)
+              tplNameForm.setFieldsValue({ name: `${r.title} (шаблон)` })
+              setTplNameOpen(true)
+            }}
+          >
+            В шаблон
+          </Button>
+        </Space>
+      ),
+    },
+  ]
+
+  const tplColumns: ColumnsType<StreamEventTemplateOut> = [
+    { title: 'Имя шаблона', dataIndex: 'name', key: 'name' },
+    { title: 'Заголовок эфира', dataIndex: 'title', key: 'title' },
+    { title: 'Дней', dataIndex: 'duration_days', key: 'duration_days', width: 72 },
+    {
+      title: '',
+      key: 'act',
+      width: 200,
+      render: (_, r) => (
+        <Space>
+          <Button
+            type="link"
+            onClick={() => {
+              instantiateForm.setFieldsValue({ template_id: r.id, start_date: dayjs() })
+              setInstantiateOpen(true)
+            }}
+          >
+            Создать событие
+          </Button>
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => void delTplMut.mutateAsync(r.id)}
+            loading={delTplMut.isPending}
+          />
+        </Space>
       ),
     },
   ]
@@ -150,6 +257,28 @@ export const ManagerStreamsPage: React.FC = () => {
       >
         <OperatorStatsPanel compact />
       </Card>
+
+      <Card
+        title="Шаблоны эфиров"
+        style={{ marginBottom: 16, borderColor: '#1f2a3a', background: '#0d1219' }}
+        styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+        extra={
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Сохраняйте настройки дней из события или создавайте копию по кнопке ниже
+          </Typography.Text>
+        }
+      >
+        <Table
+          rowKey="id"
+          loading={tplLoading}
+          dataSource={templates ?? []}
+          columns={tplColumns}
+          pagination={{ pageSize: 6 }}
+          size="small"
+          scroll={{ x: 640 }}
+        />
+      </Card>
+
       <Space
         style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}
         align="start"
@@ -161,12 +290,12 @@ export const ManagerStreamsPage: React.FC = () => {
             События
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            Создание, редактирование, отчёты и выгрузка в Word.
+            Создание, шаблоны, отчёты — Word, CSV и Excel.
           </Typography.Paragraph>
         </div>
         <Space wrap style={{ width: isNarrow ? '100%' : undefined }}>
           <Button icon={<DownloadOutlined />} onClick={() => setReportOpen(true)} block={isNarrow} size="large">
-            Экспорт Word
+            Экспорт отчёта
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} block={isNarrow} size="large">
             Новое событие
@@ -225,18 +354,58 @@ export const ManagerStreamsPage: React.FC = () => {
       </Modal>
 
       <Modal
-        title="Экспорт отчёта"
+        title="Имя шаблона"
+        open={tplNameOpen}
+        okText="Сохранить"
+        onCancel={() => {
+          setTplNameOpen(false)
+          setTplStreamId(null)
+        }}
+        confirmLoading={saveTplMut.isPending}
+        onOk={async () => {
+          const v = await tplNameForm.validateFields()
+          if (!tplStreamId) {
+            return
+          }
+          await saveTplMut.mutateAsync({ streamId: tplStreamId, name: v.name as string })
+        }}
+      >
+        <Form form={tplNameForm} layout="vertical">
+          <Form.Item name="name" label="Название шаблона" rules={[{ required: true, message: 'Обязательно' }]}>
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Событие из шаблона"
+        open={instantiateOpen}
+        okText="Создать"
+        onCancel={() => setInstantiateOpen(false)}
+        confirmLoading={instMut.isPending}
+        onOk={async () => {
+          const v = await instantiateForm.validateFields()
+          await instMut.mutateAsync(v as { template_id: string; start_date: dayjs.Dayjs })
+        }}
+      >
+        <Form form={instantiateForm} layout="vertical">
+          <Form.Item name="template_id" label="Шаблон" rules={[{ required: true }]}>
+            <Select
+              options={(templates ?? []).map((t) => ({ label: `${t.name} · ${t.title}`, value: t.id }))}
+              placeholder="Выберите шаблон"
+            />
+          </Form.Item>
+          <Form.Item name="start_date" label="Дата старта" rules={[{ required: true }]}>
+            <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Экспорт отчёта по упоминаниям"
         open={reportOpen}
         onCancel={() => setReportOpen(false)}
-        okText="Скачать .docx"
-        onOk={async () => {
-          try {
-            await handleExport()
-            setReportOpen(false)
-          } catch (e) {
-            message.error(e instanceof Error ? e.message : 'Ошибка')
-          }
-        }}
+        footer={null}
       >
         <Form form={reportForm} layout="vertical">
           <Form.Item name="stream_id" label="Фильтр: событие (необязательно)">
@@ -249,6 +418,46 @@ export const ManagerStreamsPage: React.FC = () => {
           <Form.Item name="range" label="Диапазон дат (по времени создания упоминания, МСК)">
             <DatePicker.RangePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
           </Form.Item>
+          <Space wrap>
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={async () => {
+                try {
+                  await downloadExport('docx')
+                  setReportOpen(false)
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : 'Ошибка')
+                }
+              }}
+            >
+              Скачать Word (.docx)
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await downloadExport('csv')
+                  setReportOpen(false)
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : 'Ошибка')
+                }
+              }}
+            >
+              Скачать CSV
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  await downloadExport('xlsx')
+                  setReportOpen(false)
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : 'Ошибка')
+                }
+              }}
+            >
+              Скачать Excel (.xlsx)
+            </Button>
+          </Space>
         </Form>
       </Modal>
     </AppLayout>

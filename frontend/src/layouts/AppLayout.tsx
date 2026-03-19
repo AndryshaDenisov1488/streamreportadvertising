@@ -54,7 +54,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
           style={{ flex: isNarrow ? '1 1 100%' : undefined, minWidth: 0 }}
         >
           <Link
-            to="/"
+            to="/dashboard"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -64,10 +64,16 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
               fontSize: isNarrow ? 15 : undefined,
               textDecoration: 'none',
             }}
-            aria-label="MainStream — на главную"
+            aria-label="MainStream — дашборд"
           >
             <BrandLogo height={isNarrow ? 22 : 30} />
             <span style={{ whiteSpace: 'nowrap' }}>Ops</span>
+          </Link>
+          <Link to="/dashboard" style={{ color: 'rgba(255,255,255,0.65)', fontSize: isNarrow ? 14 : 13 }}>
+            Дашборд
+          </Link>
+          <Link to="/profile" style={{ color: 'rgba(255,255,255,0.65)', fontSize: isNarrow ? 14 : 13 }}>
+            Профиль
           </Link>
           {user?.role === 'SUPERADMIN' ? (
             <Space size="small" wrap>

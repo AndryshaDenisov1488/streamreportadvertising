@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     api_v1_prefix: str = "/api/v1"
 
+    upload_dir: str = "uploads"
+
     app_version: str = "1.0.0"
 
     sentry_dsn: str = ""
@@ -33,6 +35,14 @@ class Settings(BaseSettings):
 
     # Дни хранения журнала аудита (0 = не удалять; фоновые задачи — вне HTTP)
     audit_retention_days: int = 0
+
+    # SMTP для еженедельных/ежемесячных отчётов (пустой host — рассылка отключена)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "noreply@localhost"
+    smtp_use_tls: bool = True
 
     @property
     def cors_origins_list(self) -> list[str]:

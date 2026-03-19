@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import decode_token_safe, parse_uuid
 from app.db.session import get_db
 from app.models.enums import UserRole
@@ -51,3 +52,15 @@ OperatorOrAbove = Annotated[
     User, Depends(require_roles(UserRole.SUPERADMIN, UserRole.STREAM_MANAGER, UserRole.OPERATOR))
 ]
 AnyAuthenticated = Annotated[User, Depends(get_current_user)]
+
+
+async def get_refresh_jti(request: Request) -> str | None:
+    settings = get_settings()
+    token = request.cookies.get(settings.refresh_cookie_name)
+    if not token:
+        return None
+    payload = decode_token_safe(token)
+    return payload.get("jti") if payload else None
+
+
+RefreshJti = Annotated[str | None, Depends(get_refresh_jti)]

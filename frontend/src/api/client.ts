@@ -14,7 +14,7 @@ export const setAccessToken = (token: string | null) => {
 
 type FetchOptions = RequestInit & { skipAuth?: boolean }
 
-const getOrCreateRequestId = (): string => {
+export const getOrCreateRequestId = (): string => {
   try {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID()
@@ -92,4 +92,98 @@ export const logoutRequest = async () => {
 
 export const meRequest = async () => {
   return (await apiFetch('/auth/me')) as { user: import('@/api/types').UserOut }
+}
+
+export const getDashboardSummary = async () => {
+  return (await apiFetch('/dashboard')) as import('@/api/types').DashboardSummaryOut
+}
+
+export const patchProfileRequest = async (body: {
+  first_name?: string
+  last_name?: string
+  phone?: string
+  telegram?: string
+}) => {
+  return (await apiFetch('/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })) as import('@/api/types').UserOut
+}
+
+export const uploadAvatarRequest = async (file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  const token = getAccessToken()
+  const headers: Record<string, string> = {
+    'X-Request-ID': getOrCreateRequestId(),
+  }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  const res = await fetch(`${API_BASE}/profile/avatar`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+    headers,
+  })
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const errJson = await res.json()
+      if (errJson?.detail) {
+        detail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail)
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  return (await res.json()) as import('@/api/types').UserOut
+}
+
+export const getMyActivityPage = async (page: number, pageSize: number) => {
+  const q = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
+  return (await apiFetch(`/profile/activity?${q.toString()}`)) as {
+    items: import('@/api/types').AuditLogOut[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export const changePasswordRequest = async (current_password: string, new_password: string) => {
+  await apiFetch('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password, new_password }),
+  })
+}
+
+export const listSessionsRequest = async () => {
+  return (await apiFetch('/auth/sessions')) as import('@/api/types').SessionOut[]
+}
+
+export const revokeSessionRequest = async (sessionId: string) => {
+  await apiFetch(`/auth/sessions/${sessionId}`, { method: 'DELETE' })
+}
+
+export const listEventTemplatesRequest = async () => {
+  return (await apiFetch('/stream-event-templates')) as import('@/api/types').StreamEventTemplateOut[]
+}
+
+export const deleteEventTemplateRequest = async (id: string) => {
+  await apiFetch(`/stream-event-templates/${id}`, { method: 'DELETE' })
+}
+
+export const instantiateTemplateRequest = async (templateId: string, start_date: string) => {
+  return (await apiFetch(`/stream-event-templates/${templateId}/instantiate`, {
+    method: 'POST',
+    body: JSON.stringify({ start_date }),
+  })) as import('@/api/types').StreamEventDetailOut
+}
+
+export const createTemplateFromEventRequest = async (streamId: string, name: string) => {
+  return (await apiFetch(`/stream-event-templates/from-event/${streamId}`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })) as import('@/api/types').StreamEventTemplateOut
 }

@@ -9,23 +9,33 @@ import { apiFetch } from '@/api/client'
 
 export type OperatorStatsOverview = {
   stat_date: string
+  week_start: string
+  week_end: string
+  month_start: string
+  month_end: string
   assignments: {
     stream_event_id: string
     title: string
-    locked_by_user_id: string
-    locked_by_email: string
-    locked_by_display_name: string
+    summary: string
   }[]
   operators: {
     operator_id: string
     email: string
     display_name: string
     role: string
-    broadcasts_count: number
-    mentions_count: number
+    broadcasts_week: number
+    mentions_week: number
+    mentions_norm_week: number
+    mentions_met_week: boolean
+    broadcasts_month: number
+    mentions_month: number
+    mentions_norm_month: number
+    mentions_met_month: boolean
   }[]
-  total_broadcasts_day: number
-  total_mentions_day: number
+  total_broadcasts_week: number
+  total_mentions_week: number
+  total_broadcasts_month: number
+  total_mentions_month: number
 }
 
 const roleRu = (r: string) => {
@@ -36,6 +46,17 @@ const roleRu = (r: string) => {
   }
   return m[r] ?? r
 }
+
+const mentionCell = (v: number, met: boolean) => (
+  <span
+    style={{
+      color: met ? '#52c41a' : '#ff7875',
+      fontWeight: 600,
+    }}
+  >
+    {v}
+  </span>
+)
 
 export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact }) => {
   const [statDay, setStatDay] = useState(() => dayjs())
@@ -70,18 +91,32 @@ export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact })
       render: (r: string) => roleRu(r),
     },
     {
-      title: 'Эфиров за день',
-      dataIndex: 'broadcasts_count',
-      key: 'bc',
+      title: 'Эфиров за неделю',
+      dataIndex: 'broadcasts_week',
+      key: 'bw',
       width: 130,
       align: 'center',
     },
     {
-      title: 'Упоминаний за день',
-      dataIndex: 'mentions_count',
-      key: 'mc',
+      title: 'Упоминаний (нед.)',
+      key: 'mw',
       width: 150,
       align: 'center',
+      render: (_, r) => mentionCell(r.mentions_week, r.mentions_met_week),
+    },
+    {
+      title: 'Эфиров за месяц',
+      dataIndex: 'broadcasts_month',
+      key: 'bm',
+      width: 130,
+      align: 'center',
+    },
+    {
+      title: 'Упоминаний (мес.)',
+      key: 'mm',
+      width: 150,
+      align: 'center',
+      render: (_, r) => mentionCell(r.mentions_month, r.mentions_met_month),
     },
   ]
 
@@ -98,40 +133,30 @@ export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact })
       ),
     },
     {
-      title: 'Кто в работе',
-      key: 'who',
+      title: 'Операторы по дням',
+      dataIndex: 'summary',
+      key: 'summary',
       ellipsis: true,
-      render: (_, r) => (
-        <div>
-          <div>{r.locked_by_display_name || r.locked_by_email}</div>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {r.locked_by_email}
-          </Typography.Text>
-        </div>
-      ),
     },
   ]
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Space wrap align="center">
-        <Typography.Text type="secondary">День статистики (МСК):</Typography.Text>
-        <DatePicker
-          value={statDay}
-          onChange={(d) => d && setStatDay(d)}
-          format="DD.MM.YYYY"
-          allowClear={false}
-        />
+        <Typography.Text type="secondary">Опорная дата (МСК, для границ недели и месяца):</Typography.Text>
+        <DatePicker value={statDay} onChange={(d) => d && setStatDay(d)} format="DD.MM.YYYY" allowClear={false} />
       </Space>
       {data ? (
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Typography.Text type="secondary">
-            За {dayjs(data.stat_date).format('DD.MM.YYYY')}: эфиров {data.total_broadcasts_day}, упоминаний{' '}
-            {data.total_mentions_day}
+            Неделя {dayjs(data.week_start).format('DD.MM')} — {dayjs(data.week_end).format('DD.MM.YYYY')}: эфиров{' '}
+            {data.total_broadcasts_week}, упоминаний {data.total_mentions_week}. Месяц{' '}
+            {dayjs(data.month_start).format('MM.YYYY')}: эфиров {data.total_broadcasts_month}, упоминаний{' '}
+            {data.total_mentions_month}. Норма упоминаний: 4 на каждый эфир — зелёный цвет, если выполнено.
           </Typography.Text>
           <Card
             size={compact ? 'small' : 'default'}
-            title="Кто на каких событиях сейчас"
+            title="Кто на каких событиях (по дням)"
             style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
           >
             <Table
@@ -141,12 +166,12 @@ export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact })
               dataSource={data.assignments}
               columns={assignColumns}
               pagination={false}
-              locale={{ emptyText: 'Никто не взял события в работу' }}
+              locale={{ emptyText: 'Нет назначений по дням' }}
             />
           </Card>
           <Card
             size={compact ? 'small' : 'default'}
-            title="Операторы: эфиры и упоминания за день"
+            title="Операторы: эфиры и упоминания (неделя и месяц)"
             style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
           >
             <Table
@@ -155,8 +180,8 @@ export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact })
               dataSource={data.operators}
               columns={opColumns}
               pagination={false}
-              locale={{ emptyText: 'Нет данных за этот день' }}
-              scroll={{ x: 480 }}
+              locale={{ emptyText: 'Нет операторов' }}
+              scroll={{ x: 900 }}
             />
           </Card>
         </Space>

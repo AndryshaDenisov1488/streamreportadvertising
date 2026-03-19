@@ -1,8 +1,11 @@
+import csv
+import io
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
 from uuid import UUID
 
 from docx import Document
+from openpyxl import Workbook
 from fastapi import HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,6 +103,67 @@ def build_docx_report(rows: list[ReportMentionRow]) -> bytes:
     return buffer.getvalue()
 
 
+def build_csv_report(rows: list[ReportMentionRow]) -> bytes:
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(
+        [
+            "stream_title",
+            "event_day_date",
+            "day_index",
+            "original_timecode",
+            "adjusted_timecode",
+            "absolute_moscow_adjusted",
+            "mention_created_at",
+        ]
+    )
+    for row in rows:
+        w.writerow(
+            [
+                row.stream_title,
+                row.event_day_date.isoformat(),
+                row.day_index,
+                row.original_timecode,
+                row.adjusted_timecode,
+                row.absolute_moscow_adjusted,
+                row.mention_created_at.isoformat(),
+            ]
+        )
+    return buf.getvalue().encode("utf-8-sig")
+
+
+def build_xlsx_report(rows: list[ReportMentionRow]) -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "mentions"
+    ws.append(
+        [
+            "stream_title",
+            "event_day_date",
+            "day_index",
+            "original_timecode",
+            "adjusted_timecode",
+            "absolute_moscow_adjusted",
+            "mention_created_at",
+        ]
+    )
+    for row in rows:
+        ws.append(
+            [
+                row.stream_title,
+                row.event_day_date.isoformat(),
+                row.day_index,
+                row.original_timecode,
+                row.adjusted_timecode,
+                row.absolute_moscow_adjusted,
+                row.mention_created_at.isoformat(),
+            ]
+        )
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
 async def export_mentions_docx(
     session: AsyncSession,
     *,
@@ -114,3 +178,35 @@ async def export_mentions_docx(
         date_to=date_to,
     )
     return build_docx_report(data.items)
+
+
+async def export_mentions_csv(
+    session: AsyncSession,
+    *,
+    stream_event_id: UUID | None,
+    date_from: date | None,
+    date_to: date | None,
+) -> bytes:
+    data = await get_mentions_report(
+        session,
+        stream_event_id=stream_event_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return build_csv_report(data.items)
+
+
+async def export_mentions_xlsx(
+    session: AsyncSession,
+    *,
+    stream_event_id: UUID | None,
+    date_from: date | None,
+    date_to: date | None,
+) -> bytes:
+    data = await get_mentions_report(
+        session,
+        stream_event_id=stream_event_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return build_xlsx_report(data.items)

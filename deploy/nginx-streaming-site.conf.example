@@ -1,0 +1,58 @@
+# Пример vhost для системного nginx на VPS
+# Скопировать в sites-available, подставить server_name и root к frontend/dist
+#
+# upstream: uvicorn из systemd на 127.0.0.1:8010
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+map $http_x_request_id $proxy_request_id {
+    default $http_x_request_id;
+    ''      $request_id;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ops.example.com;
+
+    # После certbot здесь появится редирект на HTTPS или ssl-сервер
+    location / {
+        root /opt/streaming/frontend/dist;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $proxy_request_id;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 86400;
+    }
+
+    location /health {
+        proxy_pass http://127.0.0.1:8010;
+        proxy_set_header Host $host;
+        proxy_set_header X-Request-ID $proxy_request_id;
+    }
+
+    location /openapi.json {
+        proxy_pass http://127.0.0.1:8010;
+        proxy_set_header Host $host;
+    }
+
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:8010;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss: http: https:; font-src 'self' data:; frame-ancestors 'self'; base-uri 'self'" always;
+}

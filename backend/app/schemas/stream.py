@@ -28,7 +28,20 @@ class StreamEventCreate(BaseModel):
 
 
 class StreamLockBody(BaseModel):
-    assign_user_id: uuid.UUID | None = None
+    assign_user_id: uuid.UUID | None = Field(default=None, description="Для SUPERADMIN: на кого повесить дни")
+    day_indices: list[int] | None = Field(
+        default=None,
+        description="Если null или пусто — все дни 1..N; иначе только перечисленные дни",
+    )
+
+
+class DayAssignmentOut(BaseModel):
+    day_index: int
+    operator_id: uuid.UUID
+    operator_display_name: str
+    operator_email: str = ""
+
+    model_config = {"from_attributes": False}
 
 
 class StreamEventUpdate(BaseModel):
@@ -45,6 +58,11 @@ class StreamEventListOut(BaseModel):
     duration_days: int
     locked_by_user_id: uuid.UUID | None
     locked_by_display_name: str | None = None
+    """Устар.: один «кто в работе»; при нескольких операторах смотрите assignment_summary."""
+    assignment_summary: str | None = None
+    """Кратко: кто какие дни ведёт."""
+    has_slot_for_me: bool = True
+    """Для текущего пользователя: есть ли свободные дни или уже свои назначения."""
     has_active_broadcast: bool
     created_at: datetime
 
@@ -70,6 +88,8 @@ class StreamEventDetailOut(BaseModel):
     duration_days: int
     locked_by_user_id: uuid.UUID | None
     locked_by_display_name: str | None = None
+    day_assignments: list[DayAssignmentOut] = []
+    """Назначения операторов по дням."""
     days: list[StreamDayOut]
     active_broadcasts: list[BroadcastSessionOut]
     created_at: datetime

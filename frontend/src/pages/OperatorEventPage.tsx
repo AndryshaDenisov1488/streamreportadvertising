@@ -137,24 +137,54 @@ export const OperatorEventPage: React.FC = () => {
     return Math.floor((Date.now() - start) / 1000)
   }, [activeSession, tick])
 
-  const foreignLock = Boolean(
-    data?.locked_by_user_id && data.locked_by_user_id !== user?.id && user?.role !== 'SUPERADMIN',
+  const takenDays = useMemo(
+    () => new Set((data?.day_assignments ?? []).map((a) => a.day_index)),
+    [data?.day_assignments],
   )
-  const iHaveLock = Boolean(user && (user.role === 'SUPERADMIN' || data?.locked_by_user_id === user.id))
 
-  /** Можно нажать «Взять в работу»: свободно или занято другим (суперадмин может перехватить), но не когда уже у вас */
+  const freeDays = useMemo(() => {
+    if (!data) {
+      return [] as number[]
+    }
+    return Array.from({ length: data.duration_days }, (_, i) => i + 1).filter((d) => !takenDays.has(d))
+  }, [data, takenDays])
+
+  const myDayIndices = useMemo(
+    () =>
+      (data?.day_assignments ?? [])
+        .filter((a) => a.operator_id === user?.id)
+        .map((a) => a.day_index)
+        .sort((a, b) => a - b),
+    [data?.day_assignments, user?.id],
+  )
+
+  const operatorForSelectedDay = useMemo(() => {
+    const a = (data?.day_assignments ?? []).find((x) => x.day_index === day)
+    return a?.operator_id
+  }, [data?.day_assignments, day])
+
+  const foreignLock = Boolean(
+    user?.role !== 'SUPERADMIN' && operatorForSelectedDay && operatorForSelectedDay !== user?.id,
+  )
+
+  const iHaveLock = Boolean(user && (user.role === 'SUPERADMIN' || myDayIndices.length > 0))
+
+  const iHaveThisDay = Boolean(
+    user?.role === 'SUPERADMIN' || (operatorForSelectedDay != null && operatorForSelectedDay === user?.id),
+  )
+
   const canTakeLock = useMemo(() => {
     if (!data || !user) {
       return false
     }
-    if (foreignLock) {
-      return false
-    }
-    if (data.locked_by_user_id == null) {
+    if (user.role === 'SUPERADMIN') {
       return true
     }
-    return data.locked_by_user_id !== user.id
-  }, [data, user, foreignLock])
+    return freeDays.length > 0
+  }, [data, user, freeDays.length])
+
+  const [lockModalOpen, setLockModalOpen] = useState(false)
+  const [lockDayPick, setLockDayPick] = useState<number[]>([])
 
   const selectedDayRow = useMemo(() => data?.days.find((d) => d.day_index === day), [data, day])
 
@@ -195,14 +225,14 @@ export const OperatorEventPage: React.FC = () => {
   }, [activeSession, lastMentionMs, idleDismissVersion, tick])
 
   const showIdleReminder = useMemo(() => {
-    if (!idleAnchorMs || !activeSession || foreignLock || !iHaveLock) {
+    if (!idleAnchorMs || !activeSession || foreignLock || !iHaveThisDay) {
       return false
     }
     if (user?.role !== 'OPERATOR') {
       return false
     }
     return Date.now() - idleAnchorMs >= IDLE_REMINDER_MS
-  }, [idleAnchorMs, activeSession, foreignLock, iHaveLock, tick, user?.role])
+  }, [idleAnchorMs, activeSession, foreignLock, iHaveThisDay, tick, user?.role])
 
   const handleIdleReminderDismiss = () => {
     lastIdleDismissAtRef.current = Date.now()
@@ -215,11 +245,15 @@ export const OperatorEventPage: React.FC = () => {
   )
 
   const lockMut = useMutation({
-    mutationFn: async () => {
-      await apiFetch(`/stream-events/${streamId}/lock`, { method: 'POST', body: '{}' })
+    mutationFn: async (day_indices: number[]) => {
+      await apiFetch(`/stream-events/${streamId}/lock`, {
+        method: 'POST',
+        body: JSON.stringify({ day_indices }),
+      })
     },
     onSuccess: async () => {
-      message.success('Событие у вас в работе')
+      message.success('Дни назначены')
+      setLockModalOpen(false)
       await qc.invalidateQueries({ queryKey: ['stream', streamId] })
     },
     onError: (e: Error) => message.error(e.message),
@@ -302,8 +336,8 @@ export const OperatorEventPage: React.FC = () => {
       message.warning('Событие занято другим оператором')
       return
     }
-    if (!iHaveLock) {
-      message.warning('Сначала возьмите событие в работу')
+    if (!iHaveThisDay) {
+      message.warning('Сначала возьмите этот день в работу')
       return
     }
     startMut.mutate()
@@ -361,20 +395,17 @@ export const OperatorEventPage: React.FC = () => {
 
           <Card size="small" style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
             <Space direction={isComfortable ? 'horizontal' : 'vertical'} size="middle" style={{ width: '100%' }}>
-              <Typography.Text>Статус блокировки:</Typography.Text>
-              {foreignLock ? (
-                <Badge
-                  status="error"
-                  text={
-                    data.locked_by_display_name
-                      ? `Занято: ${data.locked_by_display_name}`
-                      : 'Занято другим оператором'
-                  }
-                />
-              ) : data.locked_by_user_id ? (
-                <Badge status="processing" text="У вас в работе" />
+              <Typography.Text>Статус (день {day}):</Typography.Text>
+              {user?.role === 'SUPERADMIN' ? (
+                <Badge status="warning" text="Суперадмин — полный доступ" />
+              ) : foreignLock ? (
+                <Badge status="error" text="Этот день назначен другому оператору" />
+              ) : operatorForSelectedDay === user?.id ? (
+                <Badge status="processing" text="Этот день у вас" />
+              ) : freeDays.length > 0 ? (
+                <Badge status="success" text="Есть свободные дни — возьмите в работу" />
               ) : (
-                <Badge status="success" text="Свободно" />
+                <Badge status="default" text="Все дни распределены" />
               )}
               <Space
                 direction={isComfortable ? 'horizontal' : 'vertical'}
@@ -385,7 +416,14 @@ export const OperatorEventPage: React.FC = () => {
                   type={canTakeLock ? 'primary' : 'default'}
                   disabled={!canTakeLock}
                   loading={lockMut.isPending}
-                  onClick={() => lockMut.mutate()}
+                  onClick={() => {
+                    if (freeDays.length === 0) {
+                      message.info('Нет свободных дней для назначения')
+                      return
+                    }
+                    setLockDayPick(freeDays)
+                    setLockModalOpen(true)
+                  }}
                   block={!isComfortable}
                   size="large"
                 >
@@ -403,7 +441,38 @@ export const OperatorEventPage: React.FC = () => {
                 </Button>
               </Space>
             </Space>
+            {data.day_assignments.length > 0 ? (
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 12, fontSize: 12 }}>
+                Назначения:{' '}
+                {[...data.day_assignments]
+                  .sort((a, b) => a.day_index - b.day_index)
+                  .map((a) => `день ${a.day_index} — ${a.operator_display_name || a.operator_email}`)
+                  .join('; ')}
+              </Typography.Paragraph>
+            ) : null}
           </Card>
+
+          <Modal
+            title="Какие дни берёте в работу?"
+            open={lockModalOpen}
+            onCancel={() => setLockModalOpen(false)}
+            okText="Подтвердить"
+            onOk={() => {
+              if (lockDayPick.length === 0) {
+                message.warning('Выберите хотя бы один день')
+                return Promise.reject(new Error('no days'))
+              }
+              return lockMut.mutateAsync(lockDayPick)
+            }}
+            confirmLoading={lockMut.isPending}
+          >
+            <Checkbox.Group
+              style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+              options={freeDays.map((d) => ({ label: `День ${d}`, value: d }))}
+              value={lockDayPick}
+              onChange={(v) => setLockDayPick(v as number[])}
+            />
+          </Modal>
 
           <Card
             size="small"
@@ -553,7 +622,7 @@ export const OperatorEventPage: React.FC = () => {
                     size="large"
                     block
                     icon={<PlayCircleOutlined />}
-                    disabled={Boolean(activeSession) || foreignLock || !iHaveLock}
+                    disabled={Boolean(activeSession) || foreignLock || !iHaveThisDay}
                     loading={startMut.isPending}
                     onClick={() => handleStart()}
                   >
@@ -644,7 +713,7 @@ export const OperatorEventPage: React.FC = () => {
                         <Button
                           key="adj"
                           type={isComfortable ? 'link' : 'default'}
-                          disabled={foreignLock || !iHaveLock}
+                          disabled={foreignLock || !iHaveThisDay}
                           block={!isComfortable}
                           size={isComfortable ? 'middle' : 'large'}
                           onClick={() => {
@@ -668,14 +737,31 @@ export const OperatorEventPage: React.FC = () => {
                         description={
                           <Space direction="vertical" size={0}>
                             <Typography.Text type="secondary">
-                              Абсолютное (МСК): {item.absolute_moscow_adjusted}
+                              Время: {item.absolute_moscow_adjusted}
                             </Typography.Text>
                             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                              Исходный таймкод: {item.original_timecode}
+                              Таймкод трансляции: {item.original_timecode}
                             </Typography.Text>
-                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                              Запись: {formatDateTimeRu(item.created_at)}
-                            </Typography.Text>
+                            {item.adjustments && item.adjustments.length > 0 ? (
+                              <div style={{ marginTop: 8 }}>
+                                <Typography.Text
+                                  type="secondary"
+                                  style={{ fontSize: 12, display: 'block', marginBottom: 4 }}
+                                >
+                                  Лог
+                                </Typography.Text>
+                                {item.adjustments.map((a) => (
+                                  <Typography.Text
+                                    key={a.id}
+                                    type="secondary"
+                                    style={{ fontSize: 12, display: 'block' }}
+                                  >
+                                    Запись: {formatDateTimeRu(a.created_at)} · {formatElapsed(a.previous_adjusted_sec)}{' '}
+                                    → {formatElapsed(a.new_adjusted_sec)}
+                                  </Typography.Text>
+                                ))}
+                              </div>
+                            ) : null}
                           </Space>
                         }
                       />
