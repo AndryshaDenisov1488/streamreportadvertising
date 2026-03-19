@@ -47,7 +47,7 @@ export const LoginPage: React.FC = () => {
           Панель эфиров
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 24 }}>
-          Войдите для продолжения. Все времена — Москва.
+          Войдите для продолжения.
         </Typography.Paragraph>
         <Form layout="vertical" onFinish={handleFinish} requiredMark="optional">
           <Form.Item

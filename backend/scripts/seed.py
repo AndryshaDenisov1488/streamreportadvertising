@@ -1,10 +1,20 @@
-"""Сид начальных пользователей и демо-события. Запуск: python -m scripts.seed (из каталога backend, PYTHONPATH=.)."""
+"""Сид начальных пользователей и демо-события. Запуск: python -m scripts.seed (из каталога backend, PYTHONPATH=.).
+
+Почты и пароль задаются через переменные окружения (удобно для прода):
+  SEED_ADMIN_EMAIL, SEED_MANAGER_EMAIL, SEED_OPERATOR_EMAIL, SEED_PASSWORD
+Значения по умолчанию — как в демо (example.com).
+"""
 
 import asyncio
+import os
 import uuid
 from datetime import date
+from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import select
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal
@@ -13,38 +23,49 @@ from app.models.stream import StreamDay, StreamEvent
 from app.models.user import User
 
 
+def _seed_env() -> tuple[str, str, str, str]:
+    admin = os.getenv("SEED_ADMIN_EMAIL", "admin@example.com").strip()
+    manager = os.getenv("SEED_MANAGER_EMAIL", "manager@example.com").strip()
+    operator = os.getenv("SEED_OPERATOR_EMAIL", "operator@example.com").strip()
+    password = os.getenv("SEED_PASSWORD", "ChangeMe123!")
+    return admin, manager, operator, password
+
+
 async def main() -> None:
+    admin_email, manager_email, operator_email, seed_password = _seed_env()
+
     async with AsyncSessionLocal() as session:
-        res = await session.execute(select(User.id).where(User.email == "admin@example.com"))
+        res = await session.execute(select(User.id).where(User.email == admin_email))
         if res.scalar_one_or_none():
-            print("Сид уже выполнен (найден admin@example.com).")
+            print(f"Сид уже выполнен (найден {admin_email}).")
             return
 
+        pwd_hash = hash_password(seed_password)
         users = [
             User(
                 id=uuid.uuid4(),
-                email="admin@example.com",
+                email=admin_email,
                 first_name="Администратор",
                 last_name="Системный",
-                password_hash=hash_password("ChangeMe123!"),
+                password_hash=pwd_hash,
                 role=UserRole.SUPERADMIN,
                 is_active=True,
             ),
             User(
                 id=uuid.uuid4(),
-                email="manager@example.com",
+                email=manager_email,
                 first_name="Михаил",
                 last_name="Петров",
-                password_hash=hash_password("ChangeMe123!"),
+                password_hash=pwd_hash,
                 role=UserRole.STREAM_MANAGER,
                 is_active=True,
             ),
             User(
                 id=uuid.uuid4(),
-                email="operator@example.com",
+                email=operator_email,
                 first_name="Алексей",
                 last_name="Сидоров",
-                password_hash=hash_password("ChangeMe123!"),
+                password_hash=pwd_hash,
                 role=UserRole.OPERATOR,
                 is_active=True,
             ),
@@ -55,7 +76,7 @@ async def main() -> None:
 
         mgr_id = next(u.id for u in users if u.role == UserRole.STREAM_MANAGER)
         ev = StreamEvent(
-            title="Демо: чемпионат (Москва)",
+            title="Демо: чемпионат",
             start_date=date.today(),
             duration_days=3,
             created_by_id=mgr_id,
@@ -74,7 +95,10 @@ async def main() -> None:
             )
 
         await session.commit()
-        print("Сид выполнен: admin@example.com, manager@example.com, operator@example.com / ChangeMe123!")
+        print(
+            f"Сид выполнен: {admin_email}, {manager_email}, {operator_email} / пароль из SEED_PASSWORD "
+            f"(по умолчанию ChangeMe123!)"
+        )
 
 
 if __name__ == "__main__":

@@ -102,13 +102,15 @@ pytest -q
 
 ## Учётные записи после seed
 
-| Email | Роль | Пароль |
-|-------|------|--------|
-| admin@example.com | SUPERADMIN | ChangeMe123! |
-| manager@example.com | STREAM_MANAGER | ChangeMe123! |
-| operator@example.com | OPERATOR | ChangeMe123! |
+По умолчанию создаются три пользователя с паролем `ChangeMe123!`. Почты и пароль сида можно задать в `backend/.env`: `SEED_ADMIN_EMAIL`, `SEED_MANAGER_EMAIL`, `SEED_OPERATOR_EMAIL`, `SEED_PASSWORD` (см. `.env.example`).
 
-Смените пароли в продакшене.
+| Email (по умолчанию) | Роль |
+|----------------------|------|
+| admin@example.com | SUPERADMIN |
+| manager@example.com | STREAM_MANAGER |
+| operator@example.com | OPERATOR |
+
+Смените пароли в продакшене. Полное пересоздание БД: [docs/DB_RESET.md](docs/DB_RESET.md).
 
 ## Git
 
