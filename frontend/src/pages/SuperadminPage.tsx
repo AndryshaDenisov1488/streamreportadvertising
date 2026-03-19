@@ -126,12 +126,12 @@ export const SuperadminPage: React.FC = () => {
       })) as UserCreatedOut
     },
     onSuccess: async (data) => {
-      if (data.welcome_email_sent) {
-        message.success('Пользователь создан, приветственное письмо отправлено на email')
+      if (data.welcome_email_queued) {
+        message.success('Пользователь создан. Приветственное письмо отправляется на email — подождите 1–2 минуты')
       } else if (data.welcome_email_skipped_reason) {
         message.warning(
-          `Пользователь создан. Письмо не отправлено: ${data.welcome_email_skipped_reason}`,
-          8,
+          `Пользователь создан. ${data.welcome_email_skipped_reason}`,
+          10,
         )
       } else {
         message.success('Пользователь создан')

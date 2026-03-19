@@ -61,7 +61,8 @@ class UserCreate(BaseModel):
 
 class UserCreatedOut(BaseModel):
     user: UserOut
-    welcome_email_sent: bool
+    """Письмо уходит в фоне после ответа; True если SMTP настроен и задача поставлена."""
+    welcome_email_queued: bool = False
     welcome_email_skipped_reason: str | None = None
 
 

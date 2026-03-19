@@ -1,3 +1,4 @@
+import logging
 import secrets
 from typing import NamedTuple
 from uuid import UUID
@@ -6,17 +7,28 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import hash_password
-from app.models.enums import AuditActionType
+from app.models.enums import AuditActionType, UserRole
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.audit_service import write_audit
 from app.services.welcome_email_service import send_welcome_email
 
+log = logging.getLogger(__name__)
+
+
+class WelcomeEmailPayload(NamedTuple):
+    to_email: str
+    first_name: str
+    role: UserRole
+    plain_password: str | None
+    password_was_auto_generated: bool
+
 
 class CreateUserOutcome(NamedTuple):
     user: User
-    welcome_email_sent: bool
+    welcome_email_payload: WelcomeEmailPayload | None
     welcome_email_skipped_reason: str | None
 
 
@@ -77,21 +89,37 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
     await session.commit()
     await session.refresh(user)
 
-    welcome_sent = False
-    skip_reason: str | None = None
+    settings = get_settings()
+    if not settings.smtp_host.strip():
+        return CreateUserOutcome(
+            user,
+            None,
+            "SMTP не настроен (smtp_host пустой в backend/.env) — письма не отправляются",
+        )
+
+    payload = WelcomeEmailPayload(
+        to_email=user.email,
+        first_name=user.first_name,
+        role=user.role,
+        plain_password=plain_password if auto_generated else None,
+        password_was_auto_generated=auto_generated,
+    )
+    return CreateUserOutcome(user, payload, None)
+
+
+async def send_welcome_email_task(payload: WelcomeEmailPayload) -> None:
+    """Фоновая отправка после HTTP-ответа (не блокирует создание пользователя)."""
     try:
         await send_welcome_email(
-            to_email=user.email,
-            first_name=user.first_name,
-            role=user.role,
-            plain_password=plain_password if auto_generated else None,
-            password_was_auto_generated=auto_generated,
+            to_email=payload.to_email,
+            first_name=payload.first_name,
+            role=payload.role,
+            plain_password=payload.plain_password,
+            password_was_auto_generated=payload.password_was_auto_generated,
         )
-        welcome_sent = True
-    except Exception as e:
-        skip_reason = str(e)[:500]
-
-    return CreateUserOutcome(user, welcome_sent, skip_reason)
+        log.info("Welcome email sent to %s", payload.to_email)
+    except Exception:
+        log.exception("Welcome email failed for %s", payload.to_email)
 
 
 async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, data: UserUpdate) -> User:

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import SuperAdminUser
@@ -38,12 +38,15 @@ async def create_invite(
 async def create_user(
     body: UserCreate,
     actor: SuperAdminUser,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
 ) -> UserCreatedOut:
     outcome = await user_service.create_user(session, actor_id=actor.id, data=body)
+    if outcome.welcome_email_payload is not None:
+        background_tasks.add_task(user_service.send_welcome_email_task, outcome.welcome_email_payload)
     return UserCreatedOut(
         user=UserOut.model_validate(outcome.user),
-        welcome_email_sent=outcome.welcome_email_sent,
+        welcome_email_queued=outcome.welcome_email_payload is not None,
         welcome_email_skipped_reason=outcome.welcome_email_skipped_reason,
     )
 

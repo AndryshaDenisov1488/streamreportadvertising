@@ -21,7 +21,7 @@ export type UserOut = {
 
 export type UserCreatedOut = {
   user: UserOut
-  welcome_email_sent: boolean
+  welcome_email_queued: boolean
   welcome_email_skipped_reason: string | null
 }
 
