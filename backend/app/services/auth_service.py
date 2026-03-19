@@ -27,6 +27,11 @@ async def authenticate_user(session: AsyncSession, email: str, password: str) ->
     return user
 
 
+def _apply_last_login(user: User, *, request_ip: str | None) -> None:
+    user.last_login_at = datetime.now(timezone.utc)
+    user.last_login_ip = (request_ip[:45] if request_ip else None)
+
+
 async def login_user(
     session: AsyncSession,
     *,
@@ -38,6 +43,7 @@ async def login_user(
     user = await authenticate_user(session, email, password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный email или пароль")
+    _apply_last_login(user, request_ip=request_ip)
     refresh_token, jti, exp = create_refresh_token_payload()
     session.add(
         RefreshToken(
@@ -90,6 +96,7 @@ async def create_fresh_session(
     user_agent: str | None = None,
 ) -> tuple[str, str, datetime]:
     """Выдать access + refresh после регистрации по приглашению (и записать LOGIN)."""
+    _apply_last_login(user, request_ip=request_ip)
     refresh_token, jti, exp = create_refresh_token_payload()
     session.add(
         RefreshToken(

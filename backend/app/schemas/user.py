@@ -18,6 +18,8 @@ class UserOut(BaseModel):
     is_active: bool
     suggest_password_change: bool = False
     onboarding_completed: bool = False
+    last_login_at: datetime | None = None
+    last_login_ip: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

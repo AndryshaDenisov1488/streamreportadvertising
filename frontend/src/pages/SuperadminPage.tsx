@@ -192,6 +192,22 @@ export const SuperadminPage: React.FC = () => {
       render: (v: boolean) => (v ? 'да' : 'нет'),
     },
     {
+      title: 'Последний вход',
+      dataIndex: 'last_login_at',
+      key: 'last_login_at',
+      width: 170,
+      ellipsis: true,
+      render: (v: string | undefined) => (v ? formatDateTimeRu(v) : '—'),
+    },
+    {
+      title: 'IP при входе',
+      dataIndex: 'last_login_ip',
+      key: 'last_login_ip',
+      width: 140,
+      ellipsis: true,
+      render: (v: string | null | undefined) => v || '—',
+    },
+    {
       title: '',
       key: 'actions',
       width: 200,
@@ -301,7 +317,7 @@ export const SuperadminPage: React.FC = () => {
                   loading={usersQuery.isLoading}
                   dataSource={usersQuery.data ?? []}
                   columns={userColumns}
-                  scroll={{ x: 640 }}
+                  scroll={{ x: 1100 }}
                   size={isNarrow ? 'small' : 'middle'}
                 />
               </Card>

@@ -12,6 +12,7 @@ from app.schemas.profile import ChangePasswordIn, SessionOut
 from app.schemas.platform import AcceptInviteIn
 from app.schemas.user import UserOut
 from app.services import auth_service, invite_service
+from app.utils.client_ip import client_ip_from_request
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,7 +56,7 @@ async def login(
     session: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     settings = get_settings()
-    client_host = request.client.host if request.client else None
+    client_host = client_ip_from_request(request)
     ua = request.headers.get("user-agent")
     user, access, refresh, _exp = await auth_service.login_user(
         session,

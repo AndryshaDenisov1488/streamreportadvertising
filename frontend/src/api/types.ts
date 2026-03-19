@@ -16,6 +16,9 @@ export type UserOut = {
   suggest_password_change?: boolean
   /** false — показать интерактивное знакомство при первом входе */
   onboarding_completed?: boolean
+  /** Последний вход по паролю / accept-invite (UTC с бэкенда) */
+  last_login_at?: string | null
+  last_login_ip?: string | null
   created_at: string
 }
 
