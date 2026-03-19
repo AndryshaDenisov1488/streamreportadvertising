@@ -3,6 +3,9 @@
 Почты и пароль задаются через переменные окружения (удобно для прода):
   SEED_ADMIN_EMAIL, SEED_MANAGER_EMAIL, SEED_OPERATOR_EMAIL, SEED_PASSWORD
 Значения по умолчанию — как в демо (example.com).
+
+Чистый прод (только суперадмин, без демо-мероприятия и без менеджера/оператора):
+  SEED_ONLY_SUPERADMIN=1
 """
 
 import asyncio
@@ -33,6 +36,7 @@ def _seed_env() -> tuple[str, str, str, str]:
 
 async def main() -> None:
     admin_email, manager_email, operator_email, seed_password = _seed_env()
+    only_superadmin = os.getenv("SEED_ONLY_SUPERADMIN", "").strip().lower() in ("1", "true", "yes", "on")
 
     async with AsyncSessionLocal() as session:
         res = await session.execute(select(User.id).where(User.email == admin_email))
@@ -41,6 +45,26 @@ async def main() -> None:
             return
 
         pwd_hash = hash_password(seed_password)
+        if only_superadmin:
+            users = [
+                User(
+                    id=uuid.uuid4(),
+                    email=admin_email,
+                    first_name="Администратор",
+                    last_name="Системный",
+                    password_hash=pwd_hash,
+                    role=UserRole.SUPERADMIN,
+                    is_active=True,
+                    suggest_password_change=False,
+                    onboarding_completed=True,
+                ),
+            ]
+            for u in users:
+                session.add(u)
+            await session.commit()
+            print(f"Сид (только суперадмин): {admin_email} / пароль из SEED_PASSWORD")
+            return
+
         users = [
             User(
                 id=uuid.uuid4(),
