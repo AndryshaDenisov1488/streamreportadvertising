@@ -24,7 +24,7 @@ import { normalizeRuMobilePhone } from '@/utils/normalizeRuMobilePhone'
 
 const roleTitle: Record<UserRole, string> = {
   SUPERADMIN: 'Суперадминистратор',
-  STREAM_MANAGER: 'Менеджер стримов',
+  STREAM_MANAGER: 'Менеджер',
   OPERATOR: 'Оператор',
 }
 
@@ -90,7 +90,7 @@ export const OnboardingPage: React.FC = () => {
         padding: 24,
         paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
         background:
-          'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #070b10',
+          'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #f5f7fa',
       }}
     >
       <div style={{ maxWidth: step === 3 ? 760 : 640, margin: '0 auto' }}>
@@ -103,10 +103,10 @@ export const OnboardingPage: React.FC = () => {
 
         <Steps current={step} items={steps} responsive style={{ marginBottom: 28 }} />
 
-        <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+        <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
           {step === 0 && (
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
+              <Typography.Title level={4} style={{ marginTop: 0, color: '#0f172a' }}>
                 Добро пожаловать в MainStream Ops
               </Typography.Title>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
@@ -143,7 +143,7 @@ export const OnboardingPage: React.FC = () => {
                 }
               }}
             >
-              <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
+              <Typography.Title level={4} style={{ marginTop: 0, color: '#0f172a' }}>
                 Как к вам обращаться
               </Typography.Title>
               <Typography.Paragraph type="secondary">
@@ -193,7 +193,7 @@ export const OnboardingPage: React.FC = () => {
 
           {step === 2 && (
             <div>
-              <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
+              <Typography.Title level={4} style={{ marginTop: 0, color: '#0f172a' }}>
                 Аватар
               </Typography.Title>
               <Typography.Paragraph type="secondary">
@@ -230,7 +230,7 @@ export const OnboardingPage: React.FC = () => {
 
           {step === 3 && (
             <div>
-              <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
+              <Typography.Title level={4} style={{ marginTop: 0, color: '#0f172a' }}>
                 Как пользоваться панелью
               </Typography.Title>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
@@ -238,8 +238,8 @@ export const OnboardingPage: React.FC = () => {
                 повторов).
               </Typography.Paragraph>
               <PrimaryRoleTraining role={currentRole} />
-              <Divider style={{ borderColor: '#1f2a3a', margin: '20px 0' }} />
-              <Typography.Text strong style={{ display: 'block', marginBottom: 8, color: 'rgba(255,255,255,0.75)' }}>
+              <Divider style={{ borderColor: '#e2e8f0', margin: '20px 0' }} />
+              <Typography.Text strong style={{ display: 'block', marginBottom: 8, color: '#334155' }}>
                 Остальные роли — кратко
               </Typography.Text>
               <OtherRolesHint currentRole={currentRole} />

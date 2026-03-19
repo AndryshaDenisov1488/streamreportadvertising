@@ -46,18 +46,23 @@ class AcceptInviteIn(BaseModel):
 
 class ChecklistOut(BaseModel):
     stream_event_id: uuid.UUID
-    mic_ok: bool
-    scene_ok: bool
-    sponsor_slots_ok: bool
-    keys_tested_ok: bool
+    day_index: int
+    picture_exposure_ok: bool
+    judges_stream_ok: bool
+    splitter_socket_ok: bool
+    key_stream_started_ok: bool
+    kick_ok: bool
+    mentions_four_ok: bool
     updated_at: datetime
 
 
 class ChecklistUpdate(BaseModel):
-    mic_ok: bool | None = None
-    scene_ok: bool | None = None
-    sponsor_slots_ok: bool | None = None
-    keys_tested_ok: bool | None = None
+    picture_exposure_ok: bool | None = None
+    judges_stream_ok: bool | None = None
+    splitter_socket_ok: bool | None = None
+    key_stream_started_ok: bool | None = None
+    kick_ok: bool | None = None
+    mentions_four_ok: bool | None = None
 
 
 class AnalyticsRow(BaseModel):

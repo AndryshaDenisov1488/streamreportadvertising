@@ -72,13 +72,13 @@ export const DashboardPage: React.FC = () => {
         <Card
           loading={isLoading}
           style={{
-            borderColor: '#1f3a5f',
-            background: 'linear-gradient(145deg, #0d1520 0%, #0a1018 100%)',
+            borderColor: '#e2e8f0',
+            background: 'linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%)',
             borderRadius: 12,
           }}
           styles={{ body: { padding: 20 } }}
         >
-          <Typography.Text strong style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, letterSpacing: 0.6 }}>
+          <Typography.Text strong style={{ color: '#64748b', fontSize: 12, letterSpacing: 0.6 }}>
             ПОКАЗАТЕЛИ
           </Typography.Text>
           <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
@@ -86,24 +86,24 @@ export const DashboardPage: React.FC = () => {
               <Col xs={24} sm={12} lg={8} key={c.key}>
                 <div
                   style={{
-                    border: '1px solid #1f2a3a',
+                    border: '1px solid #e2e8f0',
                     borderRadius: 10,
                     padding: 16,
-                    background: 'rgba(15, 22, 32, 0.85)',
+                    background: 'rgba(241, 245, 249, 0.98)',
                     minHeight: 112,
                     display: 'flex',
                     gap: 14,
                     alignItems: 'flex-start',
                   }}
                 >
-                  <div style={{ color: '#5b8cff', marginTop: 2 }}>{cardIcon(c.key)}</div>
+                  <div style={{ color: '#0284c7', marginTop: 2 }}>{cardIcon(c.key)}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                       {c.title}
                     </Typography.Text>
                     <Statistic
                       value={c.value}
-                      valueStyle={{ color: 'rgba(255,255,255,0.95)', fontSize: 26, lineHeight: 1.2 }}
+                      valueStyle={{ color: '#0f172a', fontSize: 26, lineHeight: 1.2 }}
                     />
                     <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 6 }}>
                       {c.hint}
@@ -117,21 +117,21 @@ export const DashboardPage: React.FC = () => {
 
         <Card
           title="Рабочие разделы"
-          style={{ borderColor: '#1f2a3a', background: '#0d1219', borderRadius: 12 }}
-          styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+          style={{ borderColor: '#e2e8f0', background: '#ffffff', borderRadius: 12 }}
+          styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
         >
           <Space wrap size="middle">
             {role === 'OPERATOR' || role === 'SUPERADMIN' ? (
               <Link to="/operator">
                 <Button type="primary" size="large">
-                  События оператора
+                  Мероприятия оператора
                 </Button>
               </Link>
             ) : null}
             {role === 'STREAM_MANAGER' || role === 'SUPERADMIN' ? (
               <Link to="/manager">
                 <Button type="primary" size="large" ghost>
-                  Менеджер стримов
+                  Перейти к трансляциям
                 </Button>
               </Link>
             ) : null}

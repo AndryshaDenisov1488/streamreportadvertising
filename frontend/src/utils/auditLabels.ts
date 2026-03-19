@@ -7,11 +7,11 @@ export const auditActionLabel = (code: string): string => {
     USER_CREATE: 'Создание пользователя',
     USER_UPDATE: 'Изменение пользователя',
     USER_DELETE: 'Удаление пользователя',
-    STREAM_CREATE: 'Создание события',
-    STREAM_UPDATE: 'Изменение события',
-    STREAM_DELETE: 'Удаление события',
-    STREAM_LOCK: 'Событие взято в работу',
-    STREAM_UNLOCK: 'Событие снято с работы',
+    STREAM_CREATE: 'Создание мероприятия',
+    STREAM_UPDATE: 'Изменение мероприятия',
+    STREAM_DELETE: 'Удаление мероприятия',
+    STREAM_LOCK: 'Мероприятие взято в работу',
+    STREAM_UNLOCK: 'Мероприятие снято с работы',
     BROADCAST_START: 'Начало эфира',
     BROADCAST_STOP: 'Остановка эфира',
     MENTION_CREATE: 'Добавлено упоминание',
@@ -23,7 +23,7 @@ export const auditActionLabel = (code: string): string => {
 export const auditEntityLabel = (code: string): string => {
   const m: Record<string, string> = {
     user: 'Пользователь',
-    stream_event: 'Событие',
+    stream_event: 'Мероприятие',
     broadcast_session: 'Сессия эфира',
     sponsor_mention: 'Упоминание спонсора',
   }
@@ -34,7 +34,7 @@ const payloadKeyLabel = (key: string): string => {
   const m: Record<string, string> = {
     before: 'было',
     after: 'стало',
-    stream_event_id: 'событие',
+    stream_event_id: 'мероприятие',
     broadcast_session_id: 'сессия эфира',
     sponsor_mention_id: 'упоминание',
     mention_id: 'упоминание',

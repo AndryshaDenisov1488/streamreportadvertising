@@ -8,30 +8,32 @@ from app.models.user import User
 
 
 async def get_checklist_row(
-    session: AsyncSession, *, stream_event_id: UUID, user_id: UUID
+    session: AsyncSession, *, stream_event_id: UUID, user_id: UUID, day_index: int
 ) -> BroadcastChecklist | None:
     result = await session.execute(
         select(BroadcastChecklist).where(
             BroadcastChecklist.stream_event_id == stream_event_id,
             BroadcastChecklist.user_id == user_id,
+            BroadcastChecklist.day_index == day_index,
         )
     )
     return result.scalar_one_or_none()
 
 
 async def get_or_create_checklist(
-    session: AsyncSession, *, stream_event_id: UUID, user: User
+    session: AsyncSession, *, stream_event_id: UUID, user: User, day_index: int
 ) -> BroadcastChecklist:
     result = await session.execute(
         select(BroadcastChecklist).where(
             BroadcastChecklist.stream_event_id == stream_event_id,
             BroadcastChecklist.user_id == user.id,
+            BroadcastChecklist.day_index == day_index,
         )
     )
     row = result.scalar_one_or_none()
     if row:
         return row
-    row = BroadcastChecklist(stream_event_id=stream_event_id, user_id=user.id)
+    row = BroadcastChecklist(stream_event_id=stream_event_id, user_id=user.id, day_index=day_index)
     session.add(row)
     await session.flush()
     return row
@@ -42,20 +44,27 @@ async def update_checklist(
     *,
     stream_event_id: UUID,
     user: User,
-    mic_ok: bool | None,
-    scene_ok: bool | None,
-    sponsor_slots_ok: bool | None,
-    keys_tested_ok: bool | None,
+    day_index: int,
+    picture_exposure_ok: bool | None,
+    judges_stream_ok: bool | None,
+    splitter_socket_ok: bool | None,
+    key_stream_started_ok: bool | None,
+    kick_ok: bool | None,
+    mentions_four_ok: bool | None,
 ) -> BroadcastChecklist:
-    row = await get_or_create_checklist(session, stream_event_id=stream_event_id, user=user)
-    if mic_ok is not None:
-        row.mic_ok = mic_ok
-    if scene_ok is not None:
-        row.scene_ok = scene_ok
-    if sponsor_slots_ok is not None:
-        row.sponsor_slots_ok = sponsor_slots_ok
-    if keys_tested_ok is not None:
-        row.keys_tested_ok = keys_tested_ok
+    row = await get_or_create_checklist(session, stream_event_id=stream_event_id, user=user, day_index=day_index)
+    if picture_exposure_ok is not None:
+        row.picture_exposure_ok = picture_exposure_ok
+    if judges_stream_ok is not None:
+        row.judges_stream_ok = judges_stream_ok
+    if splitter_socket_ok is not None:
+        row.splitter_socket_ok = splitter_socket_ok
+    if key_stream_started_ok is not None:
+        row.key_stream_started_ok = key_stream_started_ok
+    if kick_ok is not None:
+        row.kick_ok = kick_ok
+    if mentions_four_ok is not None:
+        row.mentions_four_ok = mentions_four_ok
     await session.commit()
     await session.refresh(row)
     return row

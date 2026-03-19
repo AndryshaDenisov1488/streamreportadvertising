@@ -179,7 +179,7 @@ export const SuperadminPage: React.FC = () => {
       key: 'role',
       width: 160,
       render: (r: string) =>
-        ({ OPERATOR: 'Оператор', STREAM_MANAGER: 'Менеджер стримов', SUPERADMIN: 'Суперадмин' } as Record<
+        ({ OPERATOR: 'Оператор', STREAM_MANAGER: 'Менеджер', SUPERADMIN: 'Суперадмин' } as Record<
           string,
           string
         >)[r] ?? r,
@@ -283,7 +283,7 @@ export const SuperadminPage: React.FC = () => {
             label: 'Пользователи',
             children: (
               <Card
-                style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
+                style={{ borderColor: '#e2e8f0', background: '#ffffff' }}
                 extra={
                   <Button
                     type="primary"
@@ -311,10 +311,10 @@ export const SuperadminPage: React.FC = () => {
             key: 'stats',
             label: 'Статистика',
             children: (
-              <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+              <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
                 <Typography.Paragraph type="secondary">
-                  Назначения операторов на события, число эфиров и упоминаний за выбранный календарный день (МСК).
-                  Карточки событий открываются как у менеджера.
+                  Назначения операторов на мероприятия, число эфиров и упоминаний за выбранный календарный день (МСК).
+                  Карточки мероприятий открываются как у менеджера.
                 </Typography.Paragraph>
                 <OperatorStatsPanel />
               </Card>
@@ -328,9 +328,9 @@ export const SuperadminPage: React.FC = () => {
               </span>
             ),
             children: (
-              <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+              <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
                 <Typography.Paragraph type="secondary">
-                  События интерфейса за 7 дней (page_view и др.), накопленные через{' '}
+                  Данные аналитики за 7 дней (page_view и др.), накопленные через{' '}
                   <Typography.Text code>/analytics/events</Typography.Text>.
                 </Typography.Paragraph>
                 <Table
@@ -340,7 +340,7 @@ export const SuperadminPage: React.FC = () => {
                   pagination={false}
                   size="small"
                   columns={[
-                    { title: 'Событие', dataIndex: 'event_name', key: 'e' },
+                    { title: 'Ключ', dataIndex: 'event_name', key: 'e' },
                     { title: 'Раз', dataIndex: 'count', key: 'c', width: 100 },
                   ]}
                 />
@@ -352,7 +352,7 @@ export const SuperadminPage: React.FC = () => {
             label: 'Аудит',
             children: (
               <Card
-                style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
+                style={{ borderColor: '#e2e8f0', background: '#ffffff' }}
                 extra={
                   <Button icon={<DownloadOutlined />} onClick={() => void handleExportAuditCsv()}>
                     Выгрузить CSV

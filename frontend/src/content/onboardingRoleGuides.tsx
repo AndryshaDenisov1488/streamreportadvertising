@@ -6,20 +6,20 @@ import type { UserRole } from '@/api/types'
 const listStyle: React.CSSProperties = {
   margin: '10px 0 0',
   paddingLeft: 22,
-  color: 'rgba(255,255,255,0.82)',
+  color: '#334155',
   lineHeight: 1.7,
 }
 
 const subListStyle: React.CSSProperties = {
   margin: '6px 0 0',
   paddingLeft: 18,
-  color: 'rgba(255,255,255,0.72)',
+  color: '#64748b',
   lineHeight: 1.6,
   fontSize: 13,
 }
 
 const Kbd: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Typography.Text strong style={{ color: 'rgba(147,197,253,0.95)' }}>{children}</Typography.Text>
+  <Typography.Text strong style={{ color: '#0284c7' }}>{children}</Typography.Text>
 )
 
 /** Детальное обучение под роль текущего пользователя (без тавтологии с «другими ролями»). */
@@ -33,10 +33,10 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
         <ol style={listStyle}>
           <li>
             В шапке откройте раздел <Kbd>Оператор</Kbd> (маршрут <Typography.Text code>/operator</Typography.Text>) —
-            список событий, где вас назначили. Нажмите на строку турнира.
+            список мероприятий, где вас назначили. Нажмите на строку турнира.
           </li>
           <li>
-            Откроется <strong>Пульт оператора</strong>. Вверху — название события и длительность в днях.
+            Откроется <strong>Пульт оператора</strong>. Вверху — название мероприятия и длительность в днях.
           </li>
           <li>
             <strong>Статус и дни:</strong> если день свободен, нажмите <Kbd>Взять в работу</Kbd>, в модальном окне
@@ -44,8 +44,8 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
             <Kbd>Снять с работы</Kbd> снимает ваши назначения (когда нужно передать смену).
           </li>
           <li>
-            Блок <strong>Чек-лист перед эфиром</strong> — по очереди отметьте: микрофон/звук, сцену, спонсорские слоты
-            (4 упоминания за эфир), проверку ключей стрима.
+            Блок <strong>Чек-лист перед эфиром</strong> (для выбранного дня) — шесть пунктов перед стартом; у каждого дня свой
+            набор галочек.
           </li>
           <li>
             В <strong>Управление эфиром</strong> выберите <Kbd>День</Kbd> в выпадающем списке. Раскройте{' '}
@@ -86,15 +86,15 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
         </Typography.Paragraph>
         <ol style={listStyle}>
           <li>
-            В шапке откройте <Kbd>Менеджер стримов</Kbd> (
+            В шапке откройте раздел трансляций — <Kbd>Перейти к трансляциям</Kbd> (
             <Typography.Text code>/manager</Typography.Text>).
           </li>
           <li>
-            Нажмите <Kbd>Новое событие</Kbd>: укажите <strong>название</strong>, <strong>дату старта</strong> и{' '}
+            Нажмите <Kbd>Новое мероприятие</Kbd>: укажите <strong>название</strong>, <strong>дату старта</strong> и{' '}
             <strong>длительность в днях</strong> (1–5), затем <Kbd>Создать</Kbd>.
           </li>
           <li>
-            В таблице «События» нажмите на строку или ссылку открытия — попадёте в <strong>карточку события</strong>{' '}
+            В таблице «Мероприятия» нажмите на строку или ссылку открытия — попадёте в <strong>карточку мероприятия</strong>{' '}
             (редактирование).
           </li>
           <li>
@@ -107,11 +107,11 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
             (удобно контролировать без входа в пульт).
           </li>
           <li>
-            На странице менеджера доступны <strong>Шаблоны эфиров</strong>: можно сохранить типовую структуру и кнопкой{' '}
-            <Kbd>Создать событие</Kbd> развернуть новый турнир из шаблона.
+            На странице менеджера доступны <strong>Шаблоны мероприятий</strong>: можно сохранить типовую структуру и кнопкой{' '}
+            <Kbd>Создать мероприятие</Kbd> развернуть новый турнир из шаблона.
           </li>
           <li>
-            Кнопка <Kbd>Экспорт отчёта</Kbd> открывает выгрузку упоминаний (Word, CSV, Excel) за период или по событию —
+            Кнопка <Kbd>Экспорт отчёта</Kbd> открывает выгрузку упоминаний (Word, CSV, Excel) за период или по мероприятию —
             для отчётности спонсорам.
           </li>
         </ol>
@@ -130,7 +130,7 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
       </Typography.Paragraph>
       <ol style={listStyle}>
         <li>
-          <Kbd>Менеджер стримов</Kbd> — создание событий, дни, URL/ключи, шаблоны, экспорт отчётов (см. инструкцию для
+          <Kbd>Перейти к трансляциям</Kbd> — создание мероприятий, дни, URL/ключи, шаблоны, экспорт отчётов (см. инструкцию для
           менеджера выше по смыслу).
         </li>
         <li>
@@ -146,7 +146,7 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
       </ol>
       <ul style={subListStyle}>
         <li>Создание учётных записей и приветственные письма с временным паролем.</li>
-        <li>Журнал действий и сводки по событиям интерфейса.</li>
+        <li>Журнал действий и сводки по действиям в интерфейсе (аналитика).</li>
       </ul>
     </div>
   )
@@ -166,16 +166,16 @@ export const OtherRolesHint: React.FC<{ currentRole: UserRole }> = ({ currentRol
   if (currentRole !== 'STREAM_MANAGER') {
     items.push({
       key: 'mgr',
-      title: 'Менеджер стримов',
+      title: 'Менеджер',
       body:
-        'Создание событий и дней, заполнение URL/ключей, шаблоны, экспорт отчётов, просмотр упоминаний в карточке события.',
+        'Создание мероприятий и дней, заполнение URL/ключей, шаблоны, экспорт отчётов, просмотр упоминаний в карточке мероприятия.',
     })
   }
   if (currentRole !== 'SUPERADMIN') {
     items.push({
       key: 'adm',
       title: 'Суперадминистратор',
-      body: 'Пользователи, аудит, аналитика, полный доступ к событиям и пульту.',
+      body: 'Пользователи, аудит, аналитика, полный доступ к мероприятиям и пульту.',
     })
   }
   if (items.length === 0) {
@@ -185,7 +185,7 @@ export const OtherRolesHint: React.FC<{ currentRole: UserRole }> = ({ currentRol
     <>
       {items.map((it) => (
         <Typography.Paragraph key={it.key} type="secondary" style={{ marginBottom: 10 }}>
-          <Typography.Text strong style={{ color: 'rgba(255,255,255,0.88)' }}>{it.title}:</Typography.Text> {it.body}
+          <Typography.Text strong style={{ color: '#0f172a' }}>{it.title}:</Typography.Text> {it.body}
         </Typography.Paragraph>
       ))}
     </>

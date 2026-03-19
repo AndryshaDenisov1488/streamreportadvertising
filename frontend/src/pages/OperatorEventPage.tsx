@@ -12,6 +12,7 @@ import {
   Card,
   Checkbox,
   Col,
+  Divider,
   Grid,
   InputNumber,
   List,
@@ -65,19 +66,22 @@ export const OperatorEventPage: React.FC = () => {
   })
 
   const checklistQuery = useQuery({
-    queryKey: ['checklist', streamId],
+    queryKey: ['checklist', streamId, day],
     enabled: Boolean(streamId) && detailQuery.isSuccess,
-    queryFn: async () => (await apiFetch(`/stream-events/${streamId}/checklist`)) as BroadcastChecklistOut,
+    queryFn: async () =>
+      (await apiFetch(`/stream-events/${streamId}/days/${day}/checklist`)) as BroadcastChecklistOut,
   })
 
   const checklistMut = useMutation({
     mutationFn: async (patch: {
-      mic_ok?: boolean
-      scene_ok?: boolean
-      sponsor_slots_ok?: boolean
-      keys_tested_ok?: boolean
+      picture_exposure_ok?: boolean
+      judges_stream_ok?: boolean
+      splitter_socket_ok?: boolean
+      key_stream_started_ok?: boolean
+      kick_ok?: boolean
+      mentions_four_ok?: boolean
     }) => {
-      await apiFetch(`/stream-events/${streamId}/checklist`, {
+      await apiFetch(`/stream-events/${streamId}/days/${day}/checklist`, {
         method: 'PUT',
         body: JSON.stringify(patch),
       })
@@ -325,7 +329,7 @@ export const OperatorEventPage: React.FC = () => {
       return
     }
     if (foreignLock) {
-      message.warning('Событие занято другим оператором')
+      message.warning('Мероприятие занято другим оператором')
       return
     }
     mentionMut.mutate(activeSession.id)
@@ -333,7 +337,7 @@ export const OperatorEventPage: React.FC = () => {
 
   const handleStart = () => {
     if (foreignLock) {
-      message.warning('Событие занято другим оператором')
+      message.warning('Мероприятие занято другим оператором')
       return
     }
     if (!iHaveThisDay) {
@@ -393,7 +397,7 @@ export const OperatorEventPage: React.FC = () => {
             </Typography.Text>
           </div>
 
-          <Card size="small" style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+          <Card size="small" style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
             <Space direction={isComfortable ? 'horizontal' : 'vertical'} size="middle" style={{ width: '100%' }}>
               <Typography.Text>Статус (день {day}):</Typography.Text>
               {user?.role === 'SUPERADMIN' ? (
@@ -474,50 +478,12 @@ export const OperatorEventPage: React.FC = () => {
             />
           </Modal>
 
-          <Card
-            size="small"
-            title="Чек-лист перед эфиром"
-            loading={checklistQuery.isLoading}
-            style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
-          >
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <Checkbox
-                checked={checklistQuery.data?.mic_ok ?? false}
-                disabled={checklistMut.isPending}
-                onChange={(e) => checklistMut.mutate({ mic_ok: e.target.checked })}
-              >
-                Микрофон / звук
-              </Checkbox>
-              <Checkbox
-                checked={checklistQuery.data?.scene_ok ?? false}
-                disabled={checklistMut.isPending}
-                onChange={(e) => checklistMut.mutate({ scene_ok: e.target.checked })}
-              >
-                Сцена / картинка
-              </Checkbox>
-              <Checkbox
-                checked={checklistQuery.data?.sponsor_slots_ok ?? false}
-                disabled={checklistMut.isPending}
-                onChange={(e) => checklistMut.mutate({ sponsor_slots_ok: e.target.checked })}
-              >
-                Спонсорские слоты (4 упоминания)
-              </Checkbox>
-              <Checkbox
-                checked={checklistQuery.data?.keys_tested_ok ?? false}
-                disabled={checklistMut.isPending}
-                onChange={(e) => checklistMut.mutate({ keys_tested_ok: e.target.checked })}
-              >
-                Ключи стрима проверены
-              </Checkbox>
-            </Space>
-          </Card>
-
           <Row gutter={[16, 16]}>
             <Col xs={24} lg={10}>
               <Card
                 title="Управление эфиром"
-                style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
-                styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+                style={{ borderColor: '#e2e8f0', background: '#ffffff' }}
+                styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
               >
                 <Space direction="vertical" size={16} style={{ width: '100%' }}>
                   <div>
@@ -540,7 +506,7 @@ export const OperatorEventPage: React.FC = () => {
                             flexWrap: 'wrap',
                           }}
                         >
-                          <Typography.Text style={{ color: 'rgba(255,255,255,0.88)' }}>
+                          <Typography.Text style={{ color: '#0f172a' }}>
                             Параметры дня {day}
                           </Typography.Text>
                           <Button
@@ -559,8 +525,8 @@ export const OperatorEventPage: React.FC = () => {
                               marginTop: 10,
                               padding: 12,
                               borderRadius: 10,
-                              border: '1px solid #1f2a3a',
-                              background: '#0a1018',
+                              border: '1px solid #e2e8f0',
+                              background: '#f8fafc',
                             }}
                           >
                             {(
@@ -603,12 +569,62 @@ export const OperatorEventPage: React.FC = () => {
                       </>
                     ) : null}
                   </div>
+                  <Divider style={{ margin: '4px 0' }} />
+                  <div>
+                    <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                      Чек-лист перед эфиром · день {day}
+                    </Typography.Text>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Checkbox
+                        checked={checklistQuery.data?.picture_exposure_ok ?? false}
+                        disabled={checklistMut.isPending || checklistQuery.isLoading}
+                        onChange={(e) => checklistMut.mutate({ picture_exposure_ok: e.target.checked })}
+                      >
+                        Картинка, баланс белого и экспозиция (чтобы не в норме, но и не слепило)
+                      </Checkbox>
+                      <Checkbox
+                        checked={checklistQuery.data?.judges_stream_ok ?? false}
+                        disabled={checklistMut.isPending || checklistQuery.isLoading}
+                        onChange={(e) => checklistMut.mutate({ judges_stream_ok: e.target.checked })}
+                      >
+                        Поток судьям
+                      </Checkbox>
+                      <Checkbox
+                        checked={checklistQuery.data?.splitter_socket_ok ?? false}
+                        disabled={checklistMut.isPending || checklistQuery.isLoading}
+                        onChange={(e) => checklistMut.mutate({ splitter_socket_ok: e.target.checked })}
+                      >
+                        Сплиттер и сокет
+                      </Checkbox>
+                      <Checkbox
+                        checked={checklistQuery.data?.key_stream_started_ok ?? false}
+                        disabled={checklistMut.isPending || checklistQuery.isLoading}
+                        onChange={(e) => checklistMut.mutate({ key_stream_started_ok: e.target.checked })}
+                      >
+                        Ключ скопирован, поток запущен
+                      </Checkbox>
+                      <Checkbox
+                        checked={checklistQuery.data?.kick_ok ?? false}
+                        disabled={checklistMut.isPending || checklistQuery.isLoading}
+                        onChange={(e) => checklistMut.mutate({ kick_ok: e.target.checked })}
+                      >
+                        Кик стоит, у тебя тоже
+                      </Checkbox>
+                      <Checkbox
+                        checked={checklistQuery.data?.mentions_four_ok ?? false}
+                        disabled={checklistMut.isPending || checklistQuery.isLoading}
+                        onChange={(e) => checklistMut.mutate({ mentions_four_ok: e.target.checked })}
+                      >
+                        4 упоминания
+                      </Checkbox>
+                    </Space>
+                  </div>
                   <div
                     style={{
                       padding: 16,
                       borderRadius: 12,
-                      border: '1px solid #1f2a3a',
-                      background: '#0a1018',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
                       textAlign: 'center',
                     }}
                   >
@@ -654,8 +670,8 @@ export const OperatorEventPage: React.FC = () => {
                     style={{
                       padding: 12,
                       borderRadius: 10,
-                      border: '1px solid #1f2a3a',
-                      background: '#0a1018',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
                     }}
                   >
                     <Typography.Text strong style={{ display: 'block', marginBottom: 10 }}>
@@ -676,7 +692,7 @@ export const OperatorEventPage: React.FC = () => {
                             justifyContent: 'space-between',
                             gap: 8,
                             padding: '8px 0',
-                            borderTop: i === 0 ? undefined : '1px solid #1f2a3a',
+                            borderTop: i === 0 ? undefined : '1px solid #e2e8f0',
                           }}
                         >
                           <Typography.Text style={{ fontSize: 13 }}>
@@ -699,8 +715,8 @@ export const OperatorEventPage: React.FC = () => {
             <Col xs={24} lg={14}>
               <Card
                 title="Упоминания"
-                style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
-                styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+                style={{ borderColor: '#e2e8f0', background: '#ffffff' }}
+                styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
               >
                 <List
                   itemLayout={isComfortable ? 'horizontal' : 'vertical'}
@@ -793,18 +809,18 @@ export const OperatorEventPage: React.FC = () => {
         </Typography.Paragraph>
         <div
           style={{
-            border: '1px solid #1f2a3a',
+            border: '1px solid #e2e8f0',
             borderRadius: 10,
             overflow: 'hidden',
-            background: '#0a1018',
+            background: '#f8fafc',
           }}
         >
           <Row
             wrap={false}
             style={{
-              borderBottom: '1px solid #1f2a3a',
-              background: '#0f1622',
-              color: 'rgba(255,255,255,0.75)',
+              borderBottom: '1px solid #e2e8f0',
+              background: '#f1f5f9',
+              color: '#64748b',
               fontSize: 13,
               fontWeight: 500,
             }}
@@ -816,7 +832,7 @@ export const OperatorEventPage: React.FC = () => {
               flex="1"
               style={{
                 padding: '10px 12px',
-                borderLeft: '1px solid #1f2a3a',
+                borderLeft: '1px solid #e2e8f0',
               }}
             >
               Секунды
@@ -840,7 +856,7 @@ export const OperatorEventPage: React.FC = () => {
               flex="1"
               style={{
                 padding: 12,
-                borderLeft: '1px solid #1f2a3a',
+                borderLeft: '1px solid #e2e8f0',
               }}
             >
               <InputNumber
@@ -859,7 +875,7 @@ export const OperatorEventPage: React.FC = () => {
         </div>
         <Typography.Paragraph type="secondary" style={{ marginTop: 14, marginBottom: 0 }}>
           Итого от старта эфира:{' '}
-          <Typography.Text strong style={{ color: 'rgba(255,255,255,0.92)' }}>
+          <Typography.Text strong style={{ color: '#0f172a' }}>
             {formatElapsed(adjustTotalSec)}
           </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
@@ -888,7 +904,7 @@ export const OperatorEventPage: React.FC = () => {
           }}
         >
           <div style={{ maxWidth: 440, textAlign: 'center' }}>
-            <Typography.Title level={3} id="idle-reminder-title" style={{ color: 'rgba(255,255,255,0.95)' }}>
+            <Typography.Title level={3} id="idle-reminder-title" style={{ color: '#0f172a' }}>
               Не забудьте про напоминалки
             </Typography.Title>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 24, fontSize: 15 }}>

@@ -19,7 +19,7 @@ async def build_dashboard_summary(session: AsyncSession, *, user: User) -> dict[
 
     if user.role == UserRole.OPERATOR:
         n_streams = await session.scalar(select(func.count()).select_from(StreamEvent))
-        cards.append({"key": "events", "title": "Событий в системе", "value": int(n_streams or 0), "hint": "Все запланированные эфиры"})
+        cards.append({"key": "events", "title": "Мероприятий в системе", "value": int(n_streams or 0), "hint": "Все запланированные эфиры"})
         today = date.today()
         try:
             overview = await get_operator_stats_overview(session, stat_date=today)
@@ -42,8 +42,8 @@ async def build_dashboard_summary(session: AsyncSession, *, user: User) -> dict[
 
     if user.role == UserRole.STREAM_MANAGER:
         n_streams = await session.scalar(select(func.count()).select_from(StreamEvent))
-        cards.append({"key": "streams", "title": "Событий", "value": int(n_streams or 0), "hint": "В каталоге"})
-        return {"role": role, "title": "Менеджер стримов", "cards": cards}
+        cards.append({"key": "streams", "title": "Мероприятий", "value": int(n_streams or 0), "hint": "В каталоге"})
+        return {"role": role, "title": "Трансляции и мероприятия", "cards": cards}
 
     # SUPERADMIN
     n_users = await session.scalar(select(func.count()).select_from(User))

@@ -177,10 +177,13 @@ export const deleteEventTemplateRequest = async (id: string) => {
   await apiFetch(`/stream-event-templates/${id}`, { method: 'DELETE' })
 }
 
-export const instantiateTemplateRequest = async (templateId: string, start_date: string) => {
+export const instantiateTemplateRequest = async (
+  templateId: string,
+  body: { title: string; start_date: string; duration_days: number },
+) => {
   return (await apiFetch(`/stream-event-templates/${templateId}/instantiate`, {
     method: 'POST',
-    body: JSON.stringify({ start_date }),
+    body: JSON.stringify(body),
   })) as import('@/api/types').StreamEventDetailOut
 }
 

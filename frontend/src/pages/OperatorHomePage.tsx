@@ -18,7 +18,7 @@ export const OperatorHomePage: React.FC = () => {
 
   const handleCardClick = (ev: StreamEventListOut) => {
     if (!ev.has_slot_for_me) {
-      message.warning('Все дни этого события уже распределены между операторами')
+      message.warning('Все дни этого мероприятия уже распределены между операторами')
     }
   }
 
@@ -31,13 +31,13 @@ export const OperatorHomePage: React.FC = () => {
       }
     >
       <Typography.Title level={3} style={{ marginTop: 0 }}>
-        События
+        Мероприятия
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Выберите событие. Можно взять свободные дни турнира; если все дни заняты — карточка приглушена.
+        Выберите мероприятие. Можно взять свободные дни турнира; если все дни заняты — карточка приглушена.
       </Typography.Paragraph>
       {!isLoading && (!data || data.length === 0) ? (
-        <Empty description="Нет событий" />
+        <Empty description="Нет мероприятий" />
       ) : (
         <Row gutter={[16, 16]}>
           {(data ?? []).map((ev) => {
@@ -58,12 +58,12 @@ export const OperatorHomePage: React.FC = () => {
                     loading={isLoading}
                     style={{
                       opacity: blocked ? 0.55 : 1,
-                      borderColor: '#1f2a3a',
-                      background: '#0d1219',
+                      borderColor: '#e2e8f0',
+                      background: '#ffffff',
                     }}
                   >
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                      <Typography.Title level={5} style={{ margin: 0, color: 'rgba(255,255,255,0.92)' }}>
+                      <Typography.Title level={5} style={{ margin: 0, color: '#0f172a' }}>
                         {ev.title}
                       </Typography.Title>
                       <Typography.Text type="secondary">

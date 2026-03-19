@@ -21,7 +21,7 @@
 | Аудит | Выгрузка **CSV** (`GET /api/v1/audit-logs/export.csv`), очистка `POST /audit-logs/purge` |
 | Продуктовая аналитика | `POST /analytics/events`, сводка `/analytics/summary` (суперадмин, вкладка «Продукт») |
 | Приглашения | `POST /users/invites`, регистрация `POST /auth/accept-invite` |
-| Чек-лист эфира | `GET/PUT /stream-events/{id}/checklist` (микрофон, сцена, слоты, ключи) |
+| Чек-лист эфира | `GET/PUT /stream-events/{id}/days/{day}/checklist` (6 пунктов, отдельно на каждый день) |
 | PWA | `vite-plugin-pwa` — офлайн-кэш статики |
 | E2E | Playwright: `npm run test:e2e` в `frontend` (нужен стенд, см. ниже) |
 | Storybook | `npm run storybook` — компонент `BrandLogo` |

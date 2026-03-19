@@ -50,9 +50,9 @@ export const NotificationBell: React.FC = () => {
   const items = q.data?.items ?? []
 
   const dropdownContent = (
-    <div style={{ width: 320, maxHeight: 360, overflow: 'auto', background: '#0d1219', padding: 8 }}>
+    <div style={{ width: 320, maxHeight: 360, overflow: 'auto', background: '#ffffff', padding: 8 }}>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }}>
-        <Typography.Text strong style={{ color: 'rgba(255,255,255,0.88)' }}>
+        <Typography.Text strong style={{ color: '#0f172a' }}>
           Уведомления
         </Typography.Text>
         {unread > 0 ? (
@@ -78,7 +78,7 @@ export const NotificationBell: React.FC = () => {
             }}
           >
             <div style={{ width: '100%' }}>
-              <Typography.Text strong style={{ fontSize: 13, color: 'rgba(255,255,255,0.92)' }}>
+              <Typography.Text strong style={{ fontSize: 13, color: '#0f172a' }}>
                 {n.title}
               </Typography.Text>
               <div>
@@ -99,7 +99,7 @@ export const NotificationBell: React.FC = () => {
   return (
     <Dropdown dropdownRender={() => dropdownContent} trigger={['click']} placement="bottomRight">
       <Badge count={unread} size="small" offset={[-2, 2]}>
-        <Button type="text" icon={<BellOutlined />} aria-label="Уведомления" style={{ color: 'rgba(255,255,255,0.75)' }} />
+        <Button type="text" icon={<BellOutlined />} aria-label="Уведомления" style={{ color: '#475569' }} />
       </Badge>
     </Dropdown>
   )

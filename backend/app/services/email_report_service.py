@@ -90,7 +90,7 @@ async def _html_digest(session: AsyncSession, *, date_from: date, date_to: date)
         "<table border='0' cellpadding='8' cellspacing='0' style=\"width:100%;border-collapse:collapse;"
         "border:1px solid #2a3f5c;background:#0d1219\">"
         "<tr style=\"background:#152030\">"
-        "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8\">Событие</th>"
+        "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8\">Мероприятие</th>"
         "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8;width:56px\">Дней</th>"
         "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8\">Старт</th>"
         "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8\">Операторы по дням</th>"

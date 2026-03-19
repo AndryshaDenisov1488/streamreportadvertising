@@ -33,17 +33,17 @@ export const LoginPage: React.FC = () => {
         padding: 24,
         paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
         paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
-        background: 'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #070b10',
+        background: 'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #f5f7fa',
       }}
     >
       <Card
-        style={{ width: 420, maxWidth: '100%', borderColor: '#1f2a3a', background: '#0d1219' }}
+        style={{ width: 420, maxWidth: '100%', borderColor: '#e2e8f0', background: '#ffffff' }}
         bordered
       >
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
           <BrandLogo height={40} style={{ maxWidth: 'min(100%, 260px)' }} />
         </div>
-        <Typography.Title level={3} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)', textAlign: 'center' }}>
+        <Typography.Title level={3} style={{ marginTop: 0, color: '#0f172a', textAlign: 'center' }}>
           Панель эфиров
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 24 }}>

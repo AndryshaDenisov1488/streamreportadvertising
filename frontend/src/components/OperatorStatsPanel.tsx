@@ -41,7 +41,7 @@ export type OperatorStatsOverview = {
 const roleRu = (r: string) => {
   const m: Record<string, string> = {
     OPERATOR: 'Оператор',
-    STREAM_MANAGER: 'Менеджер стримов',
+    STREAM_MANAGER: 'Менеджер',
     SUPERADMIN: 'Суперадмин',
   }
   return m[r] ?? r
@@ -122,12 +122,12 @@ export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact })
 
   const assignColumns: ColumnsType<OperatorStatsOverview['assignments'][0]> = [
     {
-      title: 'Событие',
+      title: 'Мероприятие',
       dataIndex: 'title',
       key: 'title',
       ellipsis: true,
       render: (t: string, r) => (
-        <Link to={`/manager/${r.stream_event_id}`} style={{ color: '#69b1ff' }}>
+        <Link to={`/manager/${r.stream_event_id}`} style={{ color: '#0284c7' }}>
           {t}
         </Link>
       ),
@@ -156,8 +156,8 @@ export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact })
           </Typography.Text>
           <Card
             size={compact ? 'small' : 'default'}
-            title="Кто на каких событиях (по дням)"
-            style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
+            title="Кто на каких мероприятиях (по дням)"
+            style={{ borderColor: '#e2e8f0', background: '#ffffff' }}
           >
             <Table
               rowKey="stream_event_id"
@@ -172,7 +172,7 @@ export const OperatorStatsPanel: React.FC<{ compact?: boolean }> = ({ compact })
           <Card
             size={compact ? 'small' : 'default'}
             title="Операторы: эфиры и упоминания (неделя и месяц)"
-            style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
+            style={{ borderColor: '#e2e8f0', background: '#ffffff' }}
           >
             <Table
               rowKey="operator_id"

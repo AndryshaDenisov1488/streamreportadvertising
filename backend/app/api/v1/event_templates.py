@@ -67,5 +67,7 @@ async def instantiate_template(
         session,
         actor=user,
         template_id=template_id,
+        title=body.title,
         start_date=body.start_date,
+        duration_days=body.duration_days,
     )

@@ -164,54 +164,72 @@ async def stop_broadcast_route(
     )
 
 
-@router.get("/{stream_id}/checklist", response_model=ChecklistOut)
+@router.get("/{stream_id}/days/{day_index}/checklist", response_model=ChecklistOut)
 async def get_checklist_route(
     stream_id: UUID,
+    day_index: int,
     user: OperatorOrAbove,
     session: AsyncSession = Depends(get_db),
 ) -> ChecklistOut:
-    row = await checklist_service.get_checklist_row(session, stream_event_id=stream_id, user_id=user.id)
+    await stream_service.assert_valid_stream_day(session, stream_id, day_index)
+    row = await checklist_service.get_checklist_row(
+        session, stream_event_id=stream_id, user_id=user.id, day_index=day_index
+    )
     if not row:
         return ChecklistOut(
             stream_event_id=stream_id,
-            mic_ok=False,
-            scene_ok=False,
-            sponsor_slots_ok=False,
-            keys_tested_ok=False,
+            day_index=day_index,
+            picture_exposure_ok=False,
+            judges_stream_ok=False,
+            splitter_socket_ok=False,
+            key_stream_started_ok=False,
+            kick_ok=False,
+            mentions_four_ok=False,
             updated_at=datetime.now(timezone.utc),
         )
     return ChecklistOut(
         stream_event_id=row.stream_event_id,
-        mic_ok=row.mic_ok,
-        scene_ok=row.scene_ok,
-        sponsor_slots_ok=row.sponsor_slots_ok,
-        keys_tested_ok=row.keys_tested_ok,
+        day_index=row.day_index,
+        picture_exposure_ok=row.picture_exposure_ok,
+        judges_stream_ok=row.judges_stream_ok,
+        splitter_socket_ok=row.splitter_socket_ok,
+        key_stream_started_ok=row.key_stream_started_ok,
+        kick_ok=row.kick_ok,
+        mentions_four_ok=row.mentions_four_ok,
         updated_at=row.updated_at,
     )
 
 
-@router.put("/{stream_id}/checklist", response_model=ChecklistOut)
+@router.put("/{stream_id}/days/{day_index}/checklist", response_model=ChecklistOut)
 async def put_checklist_route(
     stream_id: UUID,
+    day_index: int,
     body: ChecklistUpdate,
     user: OperatorOrAbove,
     session: AsyncSession = Depends(get_db),
 ) -> ChecklistOut:
+    await stream_service.assert_valid_stream_day(session, stream_id, day_index)
     row = await checklist_service.update_checklist(
         session,
         stream_event_id=stream_id,
         user=user,
-        mic_ok=body.mic_ok,
-        scene_ok=body.scene_ok,
-        sponsor_slots_ok=body.sponsor_slots_ok,
-        keys_tested_ok=body.keys_tested_ok,
+        day_index=day_index,
+        picture_exposure_ok=body.picture_exposure_ok,
+        judges_stream_ok=body.judges_stream_ok,
+        splitter_socket_ok=body.splitter_socket_ok,
+        key_stream_started_ok=body.key_stream_started_ok,
+        kick_ok=body.kick_ok,
+        mentions_four_ok=body.mentions_four_ok,
     )
     return ChecklistOut(
         stream_event_id=row.stream_event_id,
-        mic_ok=row.mic_ok,
-        scene_ok=row.scene_ok,
-        sponsor_slots_ok=row.sponsor_slots_ok,
-        keys_tested_ok=row.keys_tested_ok,
+        day_index=row.day_index,
+        picture_exposure_ok=row.picture_exposure_ok,
+        judges_stream_ok=row.judges_stream_ok,
+        splitter_socket_ok=row.splitter_socket_ok,
+        key_stream_started_ok=row.key_stream_started_ok,
+        kick_ok=row.kick_ok,
+        mentions_four_ok=row.mentions_four_ok,
         updated_at=row.updated_at,
     )
 

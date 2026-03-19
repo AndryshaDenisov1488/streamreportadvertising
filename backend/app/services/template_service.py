@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enums import AuditActionType
 from app.models.stream import StreamEventTemplate
 from app.models.user import User
-from app.schemas.stream import StreamDayIn, StreamEventCreate
+from app.schemas.stream import StreamEventCreate
 from app.schemas.templates import StreamEventTemplateCreate, TemplateFromEventBody
 from app.services.audit_service import write_audit
 from app.services.stream_service import create_stream_event, get_stream_event_detail
@@ -109,12 +109,23 @@ async def delete_template(session: AsyncSession, *, actor: User, template_id: uu
 
 
 async def instantiate_template(
-    session: AsyncSession, *, actor: User, template_id: uuid.UUID, start_date: date
+    session: AsyncSession,
+    *,
+    actor: User,
+    template_id: uuid.UUID,
+    title: str,
+    start_date: date,
+    duration_days: int,
 ):
     result = await session.execute(select(StreamEventTemplate).where(StreamEventTemplate.id == template_id))
     t = result.scalar_one_or_none()
     if not t:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден")
-    days_in = [StreamDayIn.model_validate(d) for d in t.days_json]
-    data = StreamEventCreate(title=t.title, start_date=start_date, duration_days=t.duration_days, days=days_in)
+    data = StreamEventCreate(
+        title=title,
+        start_date=start_date,
+        duration_days=duration_days,
+        template_id=template_id,
+        days=None,
+    )
     return await create_stream_event(session, actor=actor, data=data)

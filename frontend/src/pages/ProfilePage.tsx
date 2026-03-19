@@ -180,7 +180,7 @@ export const ProfilePage: React.FC = () => {
     <AppLayout
       nav={
         <Space>
-          <Link to="/dashboard" style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }}>
+          <Link to="/dashboard" style={{ color: '#0284c7', fontSize: 13 }}>
             ← На дашборд
           </Link>
           <Typography.Text type="secondary" style={{ fontSize: 13 }}>
@@ -204,9 +204,9 @@ export const ProfilePage: React.FC = () => {
               </span>
             ),
             children: (
-              <Card style={{ borderColor: '#1f2a3a', background: '#0d1219', maxWidth: 560 }}>
+              <Card style={{ borderColor: '#e2e8f0', background: '#ffffff', maxWidth: 560 }}>
                 <Space align="start" size={24} wrap>
-                  <Avatar size={96} src={avatarSrc} style={{ background: '#1f2a3a' }}>
+                  <Avatar size={96} src={avatarSrc} style={{ background: '#e2e8f0' }}>
                     {user ? (user.last_name || user.email).slice(0, 1).toUpperCase() : '?'}
                   </Avatar>
                   <div>
@@ -279,7 +279,7 @@ export const ProfilePage: React.FC = () => {
             ),
             children: (
               <Space direction="vertical" size={24} style={{ width: '100%' }}>
-                <Card title="Смена пароля" style={{ borderColor: '#1f2a3a', background: '#0d1219', maxWidth: 480 }}>
+                <Card title="Смена пароля" style={{ borderColor: '#e2e8f0', background: '#ffffff', maxWidth: 480 }}>
                   <Form
                     form={passwordForm}
                     layout="vertical"
@@ -320,7 +320,7 @@ export const ProfilePage: React.FC = () => {
                     </Button>
                   </Form>
                 </Card>
-                <Card title="Активные сессии (по refresh-токену)" style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+                <Card title="Активные сессии (по refresh-токену)" style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
                   <Table
                     rowKey="id"
                     size="small"
@@ -341,7 +341,7 @@ export const ProfilePage: React.FC = () => {
               </span>
             ),
             children: (
-              <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+              <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
                 <Table
                   rowKey="id"
                   loading={activityLoading}

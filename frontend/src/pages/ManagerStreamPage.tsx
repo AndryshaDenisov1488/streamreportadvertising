@@ -128,7 +128,7 @@ export const ManagerStreamPage: React.FC = () => {
               Назад
             </Button>
           </Link>
-          <Typography.Text type="secondary">Карточка события</Typography.Text>
+          <Typography.Text type="secondary">Карточка мероприятия</Typography.Text>
         </Space>
       }
     >
@@ -138,8 +138,8 @@ export const ManagerStreamPage: React.FC = () => {
 
       <Card
         title="Упоминания оператора"
-        style={{ marginBottom: 16, borderColor: '#1f2a3a', background: '#0d1219' }}
-        styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+        style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
+        styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
           То же, что видит оператор в пульте: отметки по ходу эфира. Список обновляется при появлении новых записей
@@ -203,11 +203,11 @@ export const ManagerStreamPage: React.FC = () => {
             />
           </>
         ) : (
-          <Typography.Text type="secondary">Загрузка события…</Typography.Text>
+          <Typography.Text type="secondary">Загрузка мероприятия…</Typography.Text>
         )}
       </Card>
 
-      <Card loading={isLoading} style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+      <Card loading={isLoading} style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
         <Form
           layout="vertical"
           form={form}
@@ -251,7 +251,7 @@ export const ManagerStreamPage: React.FC = () => {
                     key={idx}
                     size="small"
                     title={`День ${idx}`}
-                    style={{ marginBottom: 12, borderColor: '#1f2a3a', background: '#0a1018' }}
+                    style={{ marginBottom: 12, borderColor: '#e2e8f0', background: '#f8fafc' }}
                   >
                     <Form.Item name={`day_${idx}_stream_url`} label="Ссылка на трансляцию">
                       <Input />

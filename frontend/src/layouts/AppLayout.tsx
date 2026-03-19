@@ -32,7 +32,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
   }
 
   return (
-    <Layout style={{ minHeight: '100%', background: '#070b10', display: 'flex', flexDirection: 'column' }}>
+    <Layout style={{ minHeight: '100%', background: '#f5f7fa', display: 'flex', flexDirection: 'column' }}>
       <Header
         style={{
           display: 'flex',
@@ -40,7 +40,9 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
           justifyContent: 'space-between',
           flexWrap: isNarrow ? 'wrap' : 'nowrap',
           gap: isNarrow ? 8 : 16,
-          borderBottom: '1px solid #1f2a3a',
+          background: '#ffffff',
+          boxShadow: '0 1px 0 rgba(15, 23, 42, 0.06)',
+          borderBottom: '1px solid #e2e8f0',
           ...safePad,
           height: 'auto',
           minHeight: 64,
@@ -60,7 +62,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
               display: 'inline-flex',
               alignItems: 'center',
               gap: isNarrow ? 8 : 12,
-              color: 'rgba(255,255,255,0.92)',
+              color: '#0f172a',
               fontWeight: 600,
               fontSize: isNarrow ? 15 : undefined,
               textDecoration: 'none',
@@ -70,21 +72,21 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
             <BrandLogo height={isNarrow ? 22 : 30} />
             <span style={{ whiteSpace: 'nowrap' }}>Ops</span>
           </Link>
-          <Link to="/dashboard" style={{ color: 'rgba(255,255,255,0.65)', fontSize: isNarrow ? 14 : 13 }}>
+          <Link to="/dashboard" style={{ color: '#475569', fontSize: isNarrow ? 14 : 13 }}>
             Дашборд
           </Link>
-          <Link to="/profile" style={{ color: 'rgba(255,255,255,0.65)', fontSize: isNarrow ? 14 : 13 }}>
+          <Link to="/profile" style={{ color: '#475569', fontSize: isNarrow ? 14 : 13 }}>
             Профиль
           </Link>
           {user?.role === 'SUPERADMIN' ? (
             <Space size="small" wrap>
-              <Link to="/admin" style={{ color: 'rgba(255,255,255,0.65)', fontSize: isNarrow ? 14 : 13 }}>
+              <Link to="/admin" style={{ color: '#475569', fontSize: isNarrow ? 14 : 13 }}>
                 Админ
               </Link>
-              <Link to="/manager" style={{ color: 'rgba(255,255,255,0.65)', fontSize: isNarrow ? 14 : 13 }}>
+              <Link to="/manager" style={{ color: '#475569', fontSize: isNarrow ? 14 : 13 }}>
                 Менеджер
               </Link>
-              <Link to="/operator" style={{ color: 'rgba(255,255,255,0.65)', fontSize: isNarrow ? 14 : 13 }}>
+              <Link to="/operator" style={{ color: '#475569', fontSize: isNarrow ? 14 : 13 }}>
                 Оператор
               </Link>
             </Space>
@@ -115,7 +117,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
                   {user?.role === 'SUPERADMIN'
                     ? 'Суперадмин'
                     : user?.role === 'STREAM_MANAGER'
-                      ? 'Менеджер стримов'
+                      ? 'Менеджер'
                       : user?.role === 'OPERATOR'
                         ? 'Оператор'
                         : user?.role}
@@ -157,7 +159,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
           padding: isNarrow ? '14px 12px' : '16px 20px',
           paddingBottom: `max(${isNarrow ? 14 : 16}px, env(safe-area-inset-bottom, 0px))`,
           background: 'transparent',
-          borderTop: '1px solid #1f2a3a',
+          borderTop: '1px solid #e2e8f0',
           textAlign: 'center',
         }}
       >

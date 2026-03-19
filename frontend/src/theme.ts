@@ -1,17 +1,19 @@
 import { theme } from 'antd'
 
+/** Светлая тема: белый фон, акценты в духе логотипа (лазурь / тёмно-синий) */
 export const appTheme = {
-  algorithm: theme.darkAlgorithm,
+  algorithm: theme.defaultAlgorithm,
   token: {
-    colorPrimary: '#3d7eff',
-    colorBgLayout: '#070b10',
-    colorBgContainer: '#0d1219',
-    colorBorder: '#1f2a3a',
+    colorPrimary: '#0284c7',
+    colorInfo: '#0891b2',
+    colorLink: '#0284c7',
+    colorBgLayout: '#f4f6f9',
+    colorBgContainer: '#ffffff',
+    colorBorder: '#e2e8f0',
     borderRadius: 10,
-    fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-    colorText: 'rgba(255,255,255,0.88)',
-    colorTextSecondary: 'rgba(255,255,255,0.55)',
-    /* Чуть крупнее базовый текст и контролы — удобнее на телефоне оператора */
+    fontFamily: '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif',
+    colorText: '#0f172a',
+    colorTextSecondary: '#64748b',
     fontSize: 15,
     fontSizeLG: 16,
     controlHeight: 40,
@@ -20,13 +22,13 @@ export const appTheme = {
   },
   components: {
     Layout: {
-      headerBg: '#0d1219',
-      bodyBg: '#070b10',
-      siderBg: '#0a1018',
+      headerBg: '#ffffff',
+      bodyBg: '#f4f6f9',
+      footerBg: 'transparent',
     },
     Table: {
-      headerBg: '#0f1622',
-      headerColor: 'rgba(255,255,255,0.75)',
+      headerBg: '#f1f5f9',
+      headerColor: '#334155',
       cellPaddingBlockMD: 12,
       cellPaddingInlineMD: 10,
     },

@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/auth/AuthContext'
 import { apiFetch } from '@/api/client'
 
-/** Лёгкая продуктовая аналитика: события page_view на смене маршрута. */
+/** Лёгкая продуктовая аналитика: записи page_view на смене маршрута. */
 export const AnalyticsTracker = () => {
   const loc = useLocation()
   const { user } = useAuth()

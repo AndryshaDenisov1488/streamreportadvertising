@@ -54,7 +54,7 @@ export const FirstLoginPasswordPage: React.FC = () => {
         padding: 24,
         paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
         background:
-          'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #070b10',
+          'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #f5f7fa',
       }}
     >
       <div style={{ maxWidth: 480, margin: '0 auto' }}>
@@ -62,10 +62,10 @@ export const FirstLoginPasswordPage: React.FC = () => {
           <BrandLogo height={36} />
         </div>
 
-        <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+        <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
           <Typography.Title
             level={4}
-            style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)', display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{ marginTop: 0, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <SafetyOutlined /> Первый вход: пароль
           </Typography.Title>

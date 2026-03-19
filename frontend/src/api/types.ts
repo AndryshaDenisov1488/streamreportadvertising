@@ -88,10 +88,13 @@ export type BroadcastSessionOut = {
 
 export type BroadcastChecklistOut = {
   stream_event_id: string
-  mic_ok: boolean
-  scene_ok: boolean
-  sponsor_slots_ok: boolean
-  keys_tested_ok: boolean
+  day_index: number
+  picture_exposure_ok: boolean
+  judges_stream_ok: boolean
+  splitter_socket_ok: boolean
+  key_stream_started_ok: boolean
+  kick_ok: boolean
+  mentions_four_ok: boolean
   updated_at: string
 }
 

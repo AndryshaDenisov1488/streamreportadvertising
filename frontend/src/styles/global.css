@@ -15,9 +15,9 @@ body,
 }
 
 body {
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-  background: #070b10;
-  color: rgba(255, 255, 255, 0.88);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  background: #f4f6f9;
+  color: #0f172a;
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
   touch-action: manipulation;
@@ -29,7 +29,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid rgba(105, 177, 255, 0.95);
+  outline: 2px solid rgba(2, 132, 199, 0.55);
   outline-offset: 2px;
 }
 

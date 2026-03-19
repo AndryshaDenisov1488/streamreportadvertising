@@ -10,7 +10,7 @@ const preview: Preview = {
   decorators: [
     (Story) => (
       <ConfigProvider locale={ruRU} theme={appTheme}>
-        <div style={{ background: '#070b10', minHeight: '100vh', padding: 24 }}>
+        <div style={{ background: '#f4f6f9', minHeight: '100vh', padding: 24 }}>
           <Story />
         </div>
       </ConfigProvider>

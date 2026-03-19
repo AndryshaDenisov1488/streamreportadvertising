@@ -78,7 +78,24 @@ export const ManagerStreamsPage: React.FC = () => {
   })
 
   const createMut = useMutation({
-    mutationFn: async (values: { title: string; start_date: dayjs.Dayjs; duration_days: number }) => {
+    mutationFn: async (values: {
+      title: string
+      start_date: dayjs.Dayjs
+      duration_days: number
+      template_id?: string
+    }) => {
+      if (values.template_id) {
+        await apiFetch('/stream-events', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: values.title,
+            start_date: values.start_date.format('YYYY-MM-DD'),
+            duration_days: values.duration_days,
+            template_id: values.template_id,
+          }),
+        })
+        return
+      }
       const days = Array.from({ length: values.duration_days }, (_, i) => ({
         day_index: i + 1,
         stream_url: '',
@@ -96,7 +113,7 @@ export const ManagerStreamsPage: React.FC = () => {
       })
     },
     onSuccess: async () => {
-      message.success('Событие создано')
+      message.success('Мероприятие создано')
       setOpen(false)
       createForm.resetFields()
       await qc.invalidateQueries({ queryKey: ['streams'] })
@@ -144,10 +161,19 @@ export const ManagerStreamsPage: React.FC = () => {
   })
 
   const instMut = useMutation({
-    mutationFn: async (values: { template_id: string; start_date: dayjs.Dayjs }) =>
-      instantiateTemplateRequest(values.template_id, values.start_date.format('YYYY-MM-DD')),
+    mutationFn: async (values: {
+      template_id: string
+      title: string
+      start_date: dayjs.Dayjs
+      duration_days: number
+    }) =>
+      instantiateTemplateRequest(values.template_id, {
+        title: values.title,
+        start_date: values.start_date.format('YYYY-MM-DD'),
+        duration_days: values.duration_days,
+      }),
     onSuccess: async (detail) => {
-      message.success('Событие создано из шаблона')
+      message.success('Мероприятие создано из шаблона')
       setInstantiateOpen(false)
       instantiateForm.resetFields()
       await qc.invalidateQueries({ queryKey: ['streams'] })
@@ -161,7 +187,7 @@ export const ManagerStreamsPage: React.FC = () => {
       await apiFetch(`/stream-events/${id}`, { method: 'DELETE' })
     },
     onSuccess: async () => {
-      message.success('Событие удалено')
+      message.success('Мероприятие удалено')
       await qc.invalidateQueries({ queryKey: ['streams'] })
     },
     onError: (e: Error) => message.error(e.message),
@@ -228,7 +254,7 @@ export const ManagerStreamsPage: React.FC = () => {
                 return
               }
               modal.confirm({
-                title: 'Удалить событие?',
+                title: 'Удалить мероприятие?',
                 content: `«${r.title}»: будут удалены дни, записи эфиров и упоминания. Действие необратимо.`,
                 okText: 'Удалить',
                 okButtonProps: { danger: true },
@@ -248,7 +274,7 @@ export const ManagerStreamsPage: React.FC = () => {
 
   const tplColumns: ColumnsType<StreamEventTemplateOut> = [
     { title: 'Имя шаблона', dataIndex: 'name', key: 'name' },
-    { title: 'Заголовок эфира', dataIndex: 'title', key: 'title' },
+    { title: 'Заголовок', dataIndex: 'title', key: 'title' },
     { title: 'Дней', dataIndex: 'duration_days', key: 'duration_days', width: 72 },
     {
       title: '',
@@ -259,11 +285,16 @@ export const ManagerStreamsPage: React.FC = () => {
           <Button
             type="link"
             onClick={() => {
-              instantiateForm.setFieldsValue({ template_id: r.id, start_date: dayjs() })
+              instantiateForm.setFieldsValue({
+                template_id: r.id,
+                title: '',
+                start_date: dayjs(),
+                duration_days: r.duration_days,
+              })
               setInstantiateOpen(true)
             }}
           >
-            Создать событие
+            Создать мероприятие
           </Button>
           <Button
             type="text"
@@ -281,25 +312,26 @@ export const ManagerStreamsPage: React.FC = () => {
     <AppLayout
       nav={
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-          Менеджер стримов
+          Перейти к трансляциям
         </Typography.Text>
       }
     >
       <Card
         title="Статистика операторов"
-        style={{ marginBottom: 16, borderColor: '#1f2a3a', background: '#0d1219' }}
-        styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+        style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
+        styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
       >
         <OperatorStatsPanel compact />
       </Card>
 
       <Card
-        title="Шаблоны эфиров"
-        style={{ marginBottom: 16, borderColor: '#1f2a3a', background: '#0d1219' }}
-        styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+        title="Шаблоны мероприятий"
+        style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
+        styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
         extra={
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Сохраняйте настройки дней из события или создавайте копию по кнопке ниже
+            Шаблон запоминает URL сервера — при создании мероприятия он подставляется во все дни; название, даты и
+            остальные поля вводятся заново
           </Typography.Text>
         }
       >
@@ -322,7 +354,7 @@ export const ManagerStreamsPage: React.FC = () => {
       >
         <div>
           <Typography.Title level={3} style={{ marginTop: 0 }}>
-            События
+            Мероприятия
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
             Создание, шаблоны, отчёты — Word, CSV и Excel.
@@ -333,12 +365,12 @@ export const ManagerStreamsPage: React.FC = () => {
             Экспорт отчёта
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} block={isNarrow} size="large">
-            Новое событие
+            Новое мероприятие
           </Button>
         </Space>
       </Space>
 
-      <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+      <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
         <Table
           rowKey="id"
           loading={isLoading}
@@ -351,7 +383,7 @@ export const ManagerStreamsPage: React.FC = () => {
       </Card>
 
       <Modal
-        title="Новое событие"
+        title="Новое мероприятие"
         open={open}
         okText="Создать"
         cancelText="Отмена"
@@ -385,6 +417,19 @@ export const ManagerStreamsPage: React.FC = () => {
               ]}
             />
           </Form.Item>
+          <Form.Item
+            name="template_id"
+            label="Шаблон (необязательно)"
+            extra="Подставит один и тот же URL сервера трансляции во все дни. Ссылку, ключ и прочее вводите в карточке мероприятия отдельно."
+          >
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Без шаблона"
+              options={(templates ?? []).map((t) => ({ label: `${t.name} · ${t.title}`, value: t.id }))}
+            />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -413,26 +458,47 @@ export const ManagerStreamsPage: React.FC = () => {
       </Modal>
 
       <Modal
-        title="Событие из шаблона"
+        title="Мероприятие из шаблона"
         open={instantiateOpen}
         okText="Создать"
         onCancel={() => setInstantiateOpen(false)}
         confirmLoading={instMut.isPending}
         onOk={async () => {
           const v = await instantiateForm.validateFields()
-          await instMut.mutateAsync(v as { template_id: string; start_date: dayjs.Dayjs })
+          await instMut.mutateAsync(
+            v as {
+              template_id: string
+              title: string
+              start_date: dayjs.Dayjs
+              duration_days: number
+            },
+          )
         }}
       >
         <Form form={instantiateForm} layout="vertical">
-          <Form.Item name="template_id" label="Шаблон" rules={[{ required: true }]}>
-            <Select
-              options={(templates ?? []).map((t) => ({ label: `${t.name} · ${t.title}`, value: t.id }))}
-              placeholder="Выберите шаблон"
-            />
+          <Form.Item name="template_id" hidden>
+            <Input />
+          </Form.Item>
+          <Form.Item name="title" label="Название мероприятия" rules={[{ required: true, message: 'Обязательно' }]}>
+            <Input placeholder="Новое название турнира" />
           </Form.Item>
           <Form.Item name="start_date" label="Дата старта" rules={[{ required: true }]}>
             <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
           </Form.Item>
+          <Form.Item name="duration_days" label="Длительность (дней)" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: '1', value: 1 },
+                { label: '2', value: 2 },
+                { label: '3', value: 3 },
+                { label: '4', value: 4 },
+                { label: '5', value: 5 },
+              ]}
+            />
+          </Form.Item>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+            Из шаблона подставится только URL сервера во все дни; ссылки и ключи заполните в карточке.
+          </Typography.Paragraph>
         </Form>
       </Modal>
 
@@ -443,10 +509,10 @@ export const ManagerStreamsPage: React.FC = () => {
         footer={null}
       >
         <Form form={reportForm} layout="vertical">
-          <Form.Item name="stream_id" label="Фильтр: событие (необязательно)">
+          <Form.Item name="stream_id" label="Фильтр: мероприятие (необязательно)">
             <Select
               allowClear
-              placeholder="Все события"
+              placeholder="Все мероприятия"
               options={(data ?? []).map((s) => ({ label: s.title, value: s.id }))}
             />
           </Form.Item>

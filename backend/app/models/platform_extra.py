@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -54,15 +54,18 @@ class UserInvite(Base):
 
 class BroadcastChecklist(Base):
     __tablename__ = "broadcast_checklists"
-    __table_args__ = (UniqueConstraint("stream_event_id", "user_id", name="uq_checklist_stream_user"),)
+    __table_args__ = (UniqueConstraint("stream_event_id", "user_id", "day_index", name="uq_checklist_stream_user_day"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     stream_event_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("stream_events.id", ondelete="CASCADE"), index=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    mic_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
-    scene_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
-    sponsor_slots_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
-    keys_tested_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
+    day_index: Mapped[int] = mapped_column(Integer(), nullable=False, default=1)
+    picture_exposure_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
+    judges_stream_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
+    splitter_socket_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
+    key_stream_started_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
+    kick_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
+    mentions_four_ok: Mapped[bool] = mapped_column(Boolean(), default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

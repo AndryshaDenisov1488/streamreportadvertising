@@ -16,6 +16,7 @@ from app.models.stream import (
     StreamDay,
     StreamDayAssignment,
     StreamEvent,
+    StreamEventTemplate,
 )
 from app.models.user import User
 from app.schemas.stream import (
@@ -69,8 +70,16 @@ async def _get_event(session: AsyncSession, stream_id: UUID) -> StreamEvent:
     )
     ev = result.scalar_one_or_none()
     if not ev:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Мероприятие не найдено")
     return ev
+
+
+async def assert_valid_stream_day(session: AsyncSession, stream_id: UUID, day_index: int) -> None:
+    if day_index < 1 or day_index > 5:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный день")
+    ev = await _get_event(session, stream_id)
+    if day_index > ev.duration_days:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="День вне длительности мероприятия")
 
 
 async def _assignment_operator_for_day(
@@ -255,6 +264,18 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
     )
 
 
+def _server_url_from_template_days(days_json: list | None) -> str:
+    if not days_json:
+        return ""
+    for item in days_json:
+        if not isinstance(item, dict):
+            continue
+        u = (item.get("server_url") or "").strip()
+        if u:
+            return u
+    return ""
+
+
 async def _sync_days(
     session: AsyncSession,
     stream_event_id: UUID,
@@ -304,6 +325,17 @@ async def _sync_days(
 
 
 async def create_stream_event(session: AsyncSession, *, actor: User, data: StreamEventCreate) -> StreamEventDetailOut:
+    days_for_sync = data.days
+    if data.template_id is not None:
+        res_tpl = await session.execute(select(StreamEventTemplate).where(StreamEventTemplate.id == data.template_id))
+        tpl = res_tpl.scalar_one_or_none()
+        if tpl is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден")
+        server_url = _server_url_from_template_days(tpl.days_json)
+        days_for_sync = [
+            StreamDayIn(day_index=i, stream_url="", server_url=server_url, stream_key="")
+            for i in range(1, data.duration_days + 1)
+        ]
     ev = StreamEvent(
         title=data.title,
         start_date=data.start_date,
@@ -312,7 +344,7 @@ async def create_stream_event(session: AsyncSession, *, actor: User, data: Strea
     )
     session.add(ev)
     await session.flush()
-    await _sync_days(session, ev.id, data.duration_days, data.days)
+    await _sync_days(session, ev.id, data.duration_days, days_for_sync)
     await write_audit(
         session,
         user_id=actor.id,
@@ -356,7 +388,7 @@ async def delete_stream_event(session: AsyncSession, *, actor: User, stream_id: 
     if stream_id in active_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Нельзя удалить событие с активным эфиром. Сначала остановите эфир.",
+            detail="Нельзя удалить мероприятие с активным эфиром. Сначала остановите эфир.",
         )
     before = {"title": ev.title}
     await session.delete(ev)
@@ -404,7 +436,7 @@ async def lock_stream(
         want_days = sorted(set(day_indices))
         for d in want_days:
             if d < 1 or d > ev.duration_days:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"День {d} вне длительности события")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"День {d} вне длительности мероприятия")
 
     before_lock = ev.locked_by_user_id
     for d in want_days:
@@ -481,7 +513,7 @@ async def unlock_stream(session: AsyncSession, *, actor: User, stream_id: UUID) 
         if my_days == 0 and ev.locked_by_user_id != actor.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="У вас нет назначенных дней на этом событии",
+                detail="У вас нет назначенных дней на этом мероприятии",
             )
         await session.execute(
             delete(StreamDayAssignment).where(
@@ -516,7 +548,7 @@ async def start_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный день")
     ev = await _get_event(session, stream_id)
     if day_index > ev.duration_days:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="День вне длительности события")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="День вне длительности мероприятия")
     day_op = await _assignment_operator_for_day(session, stream_id, day_index)
     if actor.role == UserRole.OPERATOR:
         if day_op != actor.id:

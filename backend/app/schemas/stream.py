@@ -25,6 +25,8 @@ class StreamEventCreate(BaseModel):
     start_date: date
     duration_days: int = Field(ge=1, le=5)
     days: list[StreamDayIn] | None = None
+    """Если задан template_id — из шаблона берётся только URL сервера во все дни; поле days игнорируется."""
+    template_id: uuid.UUID | None = None
 
 
 class StreamLockBody(BaseModel):

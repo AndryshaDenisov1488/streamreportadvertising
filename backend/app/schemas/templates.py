@@ -24,7 +24,9 @@ class StreamEventTemplateOut(BaseModel):
 
 
 class InstantiateTemplateBody(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
     start_date: date
+    duration_days: int = Field(ge=1, le=5)
 
 
 class TemplateFromEventBody(BaseModel):
