@@ -73,10 +73,11 @@ export const ProfilePage: React.FC = () => {
   const passwordMut = useMutation({
     mutationFn: (v: { current_password: string; new_password: string }) =>
       changePasswordRequest(v.current_password, v.new_password),
-    onSuccess: () => {
+    onSuccess: async () => {
       message.success('Пароль изменён. Другие сессии завершены.')
       passwordForm.resetFields()
       void qc.invalidateQueries({ queryKey: ['sessions'] })
+      await refreshMe()
     },
     onError: (e: Error) => message.error(e.message),
   })

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
 
     app_version: str = "1.0.0"
 
+    # Публичный URL панели (для ссылок в письмах), например https://streaming.example.ru
+    app_public_base_url: str = ""
+
     sentry_dsn: str = ""
     sentry_environment: str = "development"
     sentry_traces_sample_rate: float = 0.1

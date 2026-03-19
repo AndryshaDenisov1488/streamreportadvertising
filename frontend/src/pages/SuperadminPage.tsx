@@ -18,7 +18,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import React, { useEffect, useState } from 'react'
 
-import type { AuditLogOut, UserOut } from '@/api/types'
+import type { AuditLogOut, UserCreatedOut, UserOut } from '@/api/types'
 import { apiFetch, getAccessToken } from '@/api/client'
 import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -105,17 +105,37 @@ export const SuperadminPage: React.FC = () => {
       email: string
       last_name: string
       first_name: string
-      password: string
+      password?: string
       role: string
       is_active: boolean
     }) => {
-      await apiFetch('/users', {
+      const body: Record<string, unknown> = {
+        email: values.email,
+        last_name: values.last_name,
+        first_name: values.first_name,
+        role: values.role,
+        is_active: values.is_active,
+      }
+      const pw = values.password?.trim()
+      if (pw) {
+        body.password = pw
+      }
+      return (await apiFetch('/users', {
         method: 'POST',
-        body: JSON.stringify(values),
-      })
+        body: JSON.stringify(body),
+      })) as UserCreatedOut
     },
-    onSuccess: async () => {
-      message.success('Пользователь создан')
+    onSuccess: async (data) => {
+      if (data.welcome_email_sent) {
+        message.success('Пользователь создан, приветственное письмо отправлено на email')
+      } else if (data.welcome_email_skipped_reason) {
+        message.warning(
+          `Пользователь создан. Письмо не отправлено: ${data.welcome_email_skipped_reason}`,
+          8,
+        )
+      } else {
+        message.success('Пользователь создан')
+      }
       setUserOpen(false)
       createForm.resetFields()
       await qc.invalidateQueries({ queryKey: ['users'] })
@@ -379,7 +399,7 @@ export const SuperadminPage: React.FC = () => {
             email: v.email,
             last_name: v.last_name,
             first_name: v.first_name,
-            password: v.password,
+            password: v.password as string | undefined,
             role: v.role,
             is_active: v.is_active ?? true,
           })
@@ -395,8 +415,24 @@ export const SuperadminPage: React.FC = () => {
           <Form.Item name="first_name" label="Имя" rules={[{ required: true, whitespace: true }]}>
             <Input autoComplete="given-name" />
           </Form.Item>
-          <Form.Item name="password" label="Пароль" rules={[{ required: true, min: 8 }]}>
-            <Input.Password />
+          <Form.Item
+            name="password"
+            label="Пароль"
+            extra="Оставьте пустым — сгенерируется автоматически и будет отправлен на email (если настроена почта на сервере)"
+            rules={[
+              {
+                validator: async (_, v: string) => {
+                  if (!v || !String(v).trim()) {
+                    return
+                  }
+                  if (String(v).trim().length < 8) {
+                    throw new Error('Минимум 8 символов')
+                  }
+                },
+              },
+            ]}
+          >
+            <Input.Password autoComplete="new-password" />
           </Form.Item>
           <Form.Item name="role" label="Роль" rules={[{ required: true }]}>
             <Select

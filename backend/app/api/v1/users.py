@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import SuperAdminUser
 from app.db.session import get_db
 from app.schemas.platform import InviteCreate, InviteCreatedOut
-from app.schemas.user import UserCreate, UserOut, UserUpdate
+from app.schemas.user import UserCreate, UserCreatedOut, UserOut, UserUpdate
 from app.services import invite_service, user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -34,14 +34,18 @@ async def create_invite(
     )
 
 
-@router.post("", response_model=UserOut)
+@router.post("", response_model=UserCreatedOut)
 async def create_user(
     body: UserCreate,
     actor: SuperAdminUser,
     session: AsyncSession = Depends(get_db),
-) -> UserOut:
-    user = await user_service.create_user(session, actor_id=actor.id, data=body)
-    return UserOut.model_validate(user)
+) -> UserCreatedOut:
+    outcome = await user_service.create_user(session, actor_id=actor.id, data=body)
+    return UserCreatedOut(
+        user=UserOut.model_validate(outcome.user),
+        welcome_email_sent=outcome.welcome_email_sent,
+        welcome_email_skipped_reason=outcome.welcome_email_skipped_reason,
+    )
 
 
 @router.patch("/{user_id}", response_model=UserOut)

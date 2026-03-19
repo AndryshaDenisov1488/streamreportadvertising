@@ -12,7 +12,15 @@ export type UserOut = {
   avatar_url?: string | null
   role: UserRole
   is_active: boolean
+  /** Рекомендация сменить пароль после входа с временным паролем */
+  suggest_password_change?: boolean
   created_at: string
+}
+
+export type UserCreatedOut = {
+  user: UserOut
+  welcome_email_sent: boolean
+  welcome_email_skipped_reason: string | null
 }
 
 export type DashboardSummaryOut = {

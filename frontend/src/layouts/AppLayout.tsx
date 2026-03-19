@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/BrandLogo'
 import { NotificationBell } from '@/components/NotificationBell'
+import { SuggestPasswordModal } from '@/components/SuggestPasswordModal'
 import { useAuth } from '@/auth/AuthContext'
 import { userDisplayName } from '@/utils/userDisplay'
 
@@ -169,6 +170,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
           </Typography.Text>
         </Space>
       </Footer>
+      <SuggestPasswordModal />
     </Layout>
   )
 }

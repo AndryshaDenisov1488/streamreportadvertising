@@ -160,6 +160,7 @@ async def change_password(
     if not verify_password(current_password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный текущий пароль")
     user.password_hash = hash_password(new_password)
+    user.suggest_password_change = False
     await session.flush()
     now = datetime.now(timezone.utc)
     rt_result = await session.execute(

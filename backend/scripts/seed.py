@@ -50,6 +50,7 @@ async def main() -> None:
                 password_hash=pwd_hash,
                 role=UserRole.SUPERADMIN,
                 is_active=True,
+                suggest_password_change=False,
             ),
             User(
                 id=uuid.uuid4(),
@@ -59,6 +60,7 @@ async def main() -> None:
                 password_hash=pwd_hash,
                 role=UserRole.STREAM_MANAGER,
                 is_active=True,
+                suggest_password_change=False,
             ),
             User(
                 id=uuid.uuid4(),
@@ -68,6 +70,7 @@ async def main() -> None:
                 password_hash=pwd_hash,
                 role=UserRole.OPERATOR,
                 is_active=True,
+                suggest_password_change=False,
             ),
         ]
         for u in users:

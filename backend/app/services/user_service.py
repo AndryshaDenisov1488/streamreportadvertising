@@ -1,3 +1,5 @@
+import secrets
+from typing import NamedTuple
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -9,6 +11,13 @@ from app.models.enums import AuditActionType
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.audit_service import write_audit
+from app.services.welcome_email_service import send_welcome_email
+
+
+class CreateUserOutcome(NamedTuple):
+    user: User
+    welcome_email_sent: bool
+    welcome_email_skipped_reason: str | None
 
 
 async def list_users(session: AsyncSession) -> list[User]:
@@ -24,17 +33,28 @@ async def get_user(session: AsyncSession, user_id: UUID) -> User:
     return user
 
 
-async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate) -> User:
+async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate) -> CreateUserOutcome:
     exists = await session.execute(select(User.id).where(User.email == data.email))
     if exists.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email уже занят")
+
+    if data.password:
+        plain_password = data.password
+        auto_generated = False
+        suggest_change = False
+    else:
+        plain_password = secrets.token_urlsafe(14)
+        auto_generated = True
+        suggest_change = True
+
     user = User(
         email=data.email,
         first_name=data.first_name,
         last_name=data.last_name,
-        password_hash=hash_password(data.password),
+        password_hash=hash_password(plain_password),
         role=data.role,
         is_active=data.is_active,
+        suggest_password_change=suggest_change,
     )
     session.add(user)
     await session.flush()
@@ -50,11 +70,27 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
             "first_name": user.first_name,
             "last_name": user.last_name,
             "role": user.role.value,
+            "password_auto_generated": auto_generated,
         },
     )
     await session.commit()
     await session.refresh(user)
-    return user
+
+    welcome_sent = False
+    skip_reason: str | None = None
+    try:
+        await send_welcome_email(
+            to_email=user.email,
+            first_name=user.first_name,
+            role=user.role,
+            plain_password=plain_password if auto_generated else None,
+            password_was_auto_generated=auto_generated,
+        )
+        welcome_sent = True
+    except Exception as e:
+        skip_reason = str(e)[:500]
+
+    return CreateUserOutcome(user, welcome_sent, skip_reason)
 
 
 async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, data: UserUpdate) -> User:
@@ -88,6 +124,7 @@ async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, d
                 detail="Пароль не короче 8 символов",
             )
         user.password_hash = hash_password(data.password)
+        user.suggest_password_change = False
     if data.role is not None:
         user.role = data.role
     if data.is_active is not None:
