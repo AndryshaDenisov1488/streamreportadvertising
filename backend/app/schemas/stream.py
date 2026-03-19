@@ -1,0 +1,108 @@
+import uuid
+from datetime import date, datetime
+
+from pydantic import BaseModel, Field
+
+class StreamDayIn(BaseModel):
+    day_index: int = Field(ge=1, le=5)
+    stream_url: str = ""
+    server_url: str = ""
+    stream_key: str = ""
+
+
+class StreamDayOut(BaseModel):
+    id: uuid.UUID
+    day_index: int
+    stream_url: str
+    server_url: str
+    stream_key: str
+
+    model_config = {"from_attributes": True}
+
+
+class StreamEventCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    start_date: date
+    duration_days: int = Field(ge=1, le=5)
+    days: list[StreamDayIn] | None = None
+
+
+class StreamLockBody(BaseModel):
+    assign_user_id: uuid.UUID | None = None
+
+
+class StreamEventUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    start_date: date | None = None
+    duration_days: int | None = Field(default=None, ge=1, le=5)
+    days: list[StreamDayIn] | None = None
+
+
+class StreamEventListOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    start_date: date
+    duration_days: int
+    locked_by_user_id: uuid.UUID | None
+    has_active_broadcast: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BroadcastSessionOut(BaseModel):
+    id: uuid.UUID
+    stream_event_id: uuid.UUID
+    day_index: int
+    operator_id: uuid.UUID
+    started_at: datetime
+    ended_at: datetime | None
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class StreamEventDetailOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    start_date: date
+    duration_days: int
+    locked_by_user_id: uuid.UUID | None
+    days: list[StreamDayOut]
+    active_broadcasts: list[BroadcastSessionOut]
+    created_at: datetime
+    updated_at: datetime
+
+
+class SponsorMentionCreate(BaseModel):
+    pass
+
+
+class SponsorMentionUpdate(BaseModel):
+    adjusted_offset_sec: int = Field(ge=0)
+
+
+class MentionAdjustmentOut(BaseModel):
+    id: uuid.UUID
+    editor_user_id: uuid.UUID
+    previous_adjusted_sec: int
+    new_adjusted_sec: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SponsorMentionOut(BaseModel):
+    id: uuid.UUID
+    broadcast_session_id: uuid.UUID
+    original_offset_sec: int
+    adjusted_offset_sec: int
+    original_timecode: str
+    adjusted_timecode: str
+    absolute_moscow_original: str
+    absolute_moscow_adjusted: str
+    is_adjusted: bool
+    created_at: datetime
+    adjustments: list[MentionAdjustmentOut]
+
+    model_config = {"from_attributes": True}
