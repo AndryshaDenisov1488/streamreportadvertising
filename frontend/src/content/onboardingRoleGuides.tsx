@@ -116,7 +116,7 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
           </li>
         </ol>
         <Typography.Paragraph type="secondary" style={{ marginTop: 14, marginBottom: 0, fontSize: 13 }}>
-          Назначение операторов на конкретные дни делается в рабочем процессе федерации; в пульте оператор затем жмёт{' '}
+          Назначение операторов на конкретные дни согласуется вне этой панели; в пульте оператор затем жмёт{' '}
           <Kbd>Взять в работу</Kbd> по свободным дням.
         </Typography.Paragraph>
       </div>

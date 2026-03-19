@@ -110,7 +110,7 @@ export const OnboardingPage: React.FC = () => {
                 Добро пожаловать в MainStream Ops
               </Typography.Title>
               <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                Это рабочая панель федерации: расписание эфиров, таймкоды спонсорских упоминаний, роли операторов и
+                Сервис для видеооператоров MainStream: расписание эфиров, таймкоды спонсорских упоминаний, роли операторов и
                 менеджеров. Сейчас коротко настроим профиль и покажем, что доступно именно вам.
               </Typography.Paragraph>
               <Button type="primary" size="large" block onClick={() => setStep(1)}>

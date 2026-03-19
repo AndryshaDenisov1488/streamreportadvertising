@@ -8,7 +8,7 @@ def wrap_email_html(
     headline: str,
     inner_html: str,
     public_base_url: str = "",
-    footer_line: str = "MainStream Ops · рабочая панель федерации",
+    footer_line: str = "MainStream Ops · Сервис для видеооператоров MainStream",
 ) -> str:
     """Оборачивает контент в шапку/подвал. headline и URL экранируются."""
     safe_headline = html.escape(headline.strip() or "MainStream Ops")
