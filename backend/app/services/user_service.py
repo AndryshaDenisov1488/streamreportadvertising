@@ -30,6 +30,8 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email уже занят")
     user = User(
         email=data.email,
+        first_name=data.first_name,
+        last_name=data.last_name,
         password_hash=hash_password(data.password),
         role=data.role,
         is_active=data.is_active,
@@ -43,7 +45,12 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
         entity_type="user",
         entity_id=str(user.id),
         payload_before=None,
-        payload_after={"email": user.email, "role": user.role.value},
+        payload_after={
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "role": user.role.value,
+        },
     )
     await session.commit()
     await session.refresh(user)
@@ -52,12 +59,22 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
 
 async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, data: UserUpdate) -> User:
     user = await get_user(session, user_id)
-    before = {"email": user.email, "role": user.role.value, "is_active": user.is_active}
+    before = {
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user.role.value,
+        "is_active": user.is_active,
+    }
     if data.email is not None and data.email != user.email:
         exists = await session.execute(select(User.id).where(User.email == data.email))
         if exists.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email уже занят")
         user.email = data.email
+    if data.first_name is not None:
+        user.first_name = data.first_name
+    if data.last_name is not None:
+        user.last_name = data.last_name
     if data.password is not None:
         if len(data.password) < 8:
             raise HTTPException(
@@ -77,7 +94,13 @@ async def update_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID, d
         entity_type="user",
         entity_id=str(user.id),
         payload_before=before,
-        payload_after={"email": user.email, "role": user.role.value, "is_active": user.is_active},
+        payload_after={
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "role": user.role.value,
+            "is_active": user.is_active,
+        },
     )
     await session.commit()
     await session.refresh(user)
@@ -88,7 +111,12 @@ async def delete_user(session: AsyncSession, *, actor_id: UUID, user_id: UUID) -
     user = await get_user(session, user_id)
     if user.id == actor_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя удалить себя")
-    before = {"email": user.email, "role": user.role.value}
+    before = {
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "role": user.role.value,
+    }
     await session.delete(user)
     await session.flush()
     await write_audit(

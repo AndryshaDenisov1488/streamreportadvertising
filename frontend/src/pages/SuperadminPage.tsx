@@ -1,9 +1,10 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { BarChartOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
   Card,
   Form,
+  Grid,
   Input,
   Modal,
   Select,
@@ -18,8 +19,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import React, { useEffect, useState } from 'react'
 
 import type { AuditLogOut, UserOut } from '@/api/types'
-import { apiFetch } from '@/api/client'
+import { apiFetch, getAccessToken } from '@/api/client'
+import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
 import { AppLayout } from '@/layouts/AppLayout'
+import { auditActionLabel, auditEntityLabel, formatAuditPayloadRu } from '@/utils/auditLabels'
+import { formatDateTimeRu } from '@/utils/datetime'
+import { userDisplayName } from '@/utils/userDisplay'
 
 type AuditPage = {
   items: AuditLogOut[]
@@ -28,9 +33,17 @@ type AuditPage = {
   page_size: number
 }
 
+type AnalyticsSummary = {
+  by_event: { event_name: string; count: number }[]
+}
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? '/api/v1'
+
 export const SuperadminPage: React.FC = () => {
   const { message, modal } = AntApp.useApp()
   const qc = useQueryClient()
+  const screens = Grid.useBreakpoint()
+  const isNarrow = !screens.md
   const [userOpen, setUserOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserOut | null>(null)
   const [createForm] = Form.useForm()
@@ -48,12 +61,39 @@ export const SuperadminPage: React.FC = () => {
       (await apiFetch(`/audit-logs?page=${auditPage}&page_size=25`)) as AuditPage,
   })
 
+  const analyticsQuery = useQuery({
+    queryKey: ['analytics-summary'],
+    queryFn: async () => (await apiFetch('/analytics/summary')) as AnalyticsSummary,
+  })
+
+  const handleExportAuditCsv = async () => {
+    const token = getAccessToken()
+    const res = await fetch(`${API_BASE}/audit-logs/export.csv`, {
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) {
+      message.error('Не удалось выгрузить CSV')
+      return
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'audit_export.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+    message.success('Файл скачан')
+  }
+
   useEffect(() => {
     if (!editUser) {
       return
     }
     editForm.setFieldsValue({
       email: editUser.email,
+      last_name: editUser.last_name,
+      first_name: editUser.first_name,
       role: editUser.role,
       is_active: editUser.is_active,
       password: '',
@@ -61,7 +101,14 @@ export const SuperadminPage: React.FC = () => {
   }, [editUser, editForm])
 
   const createMut = useMutation({
-    mutationFn: async (values: { email: string; password: string; role: string; is_active: boolean }) => {
+    mutationFn: async (values: {
+      email: string
+      last_name: string
+      first_name: string
+      password: string
+      role: string
+      is_active: boolean
+    }) => {
       await apiFetch('/users', {
         method: 'POST',
         body: JSON.stringify(values),
@@ -103,8 +150,25 @@ export const SuperadminPage: React.FC = () => {
   })
 
   const userColumns: ColumnsType<UserOut> = [
-    { title: 'Email', dataIndex: 'email', key: 'email' },
-    { title: 'Роль', dataIndex: 'role', key: 'role', width: 160 },
+    {
+      title: 'Фамилия и имя',
+      key: 'display_name',
+      width: 200,
+      ellipsis: true,
+      render: (_, u) => userDisplayName(u),
+    },
+    { title: 'Email', dataIndex: 'email', key: 'email', ellipsis: true },
+    {
+      title: 'Роль',
+      dataIndex: 'role',
+      key: 'role',
+      width: 160,
+      render: (r: string) =>
+        ({ OPERATOR: 'Оператор', STREAM_MANAGER: 'Менеджер стримов', SUPERADMIN: 'Суперадмин' } as Record<
+          string,
+          string
+        >)[r] ?? r,
+    },
     {
       title: 'Активен',
       dataIndex: 'is_active',
@@ -145,19 +209,43 @@ export const SuperadminPage: React.FC = () => {
   ]
 
   const auditColumns: ColumnsType<AuditLogOut> = [
-    { title: 'Время', dataIndex: 'created_at', key: 'created_at', width: 200 },
-    { title: 'Действие', dataIndex: 'action_type', key: 'action_type', width: 160 },
-    { title: 'Сущность', dataIndex: 'entity_type', key: 'entity_type', width: 140 },
+    {
+      title: 'Время',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 160,
+      render: (v: string) => formatDateTimeRu(v),
+    },
+    {
+      title: 'Действие',
+      dataIndex: 'action_type',
+      key: 'action_type',
+      width: 200,
+      render: (v: string) => auditActionLabel(v),
+    },
+    {
+      title: 'Сущность',
+      dataIndex: 'entity_type',
+      key: 'entity_type',
+      width: 160,
+      render: (v: string) => auditEntityLabel(v),
+    },
     { title: 'ID', dataIndex: 'entity_id', key: 'entity_id', ellipsis: true },
     {
       title: 'Детали',
       key: 'details',
-      render: (_, r) => (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {JSON.stringify({ before: r.payload_before, after: r.payload_after }).slice(0, 180)}
-          …
-        </Typography.Text>
-      ),
+      width: 320,
+      render: (_, r) => {
+        const text = formatAuditPayloadRu({
+          ...(r.payload_before != null ? { было: r.payload_before as Record<string, unknown> } : {}),
+          ...(r.payload_after != null ? { стало: r.payload_after as Record<string, unknown> } : {}),
+        })
+        return (
+          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0, maxWidth: 400 }}>
+            {text || '—'}
+          </Typography.Paragraph>
+        )
+      },
     },
   ]
 
@@ -182,12 +270,65 @@ export const SuperadminPage: React.FC = () => {
               <Card
                 style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
                 extra={
-                  <Button type="primary" icon={<PlusOutlined />} onClick={() => setUserOpen(true)}>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setUserOpen(true)}
+                    size="large"
+                    block={isNarrow}
+                  >
                     Новый пользователь
                   </Button>
                 }
               >
-                <Table rowKey="id" loading={usersQuery.isLoading} dataSource={usersQuery.data ?? []} columns={userColumns} />
+                <Table
+                  rowKey="id"
+                  loading={usersQuery.isLoading}
+                  dataSource={usersQuery.data ?? []}
+                  columns={userColumns}
+                  scroll={{ x: 640 }}
+                  size={isNarrow ? 'small' : 'middle'}
+                />
+              </Card>
+            ),
+          },
+          {
+            key: 'stats',
+            label: 'Статистика',
+            children: (
+              <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+                <Typography.Paragraph type="secondary">
+                  Назначения операторов на события, число эфиров и упоминаний за выбранный календарный день (МСК).
+                  Карточки событий открываются как у менеджера.
+                </Typography.Paragraph>
+                <OperatorStatsPanel />
+              </Card>
+            ),
+          },
+          {
+            key: 'analytics',
+            label: (
+              <span>
+                <BarChartOutlined /> Продукт
+              </span>
+            ),
+            children: (
+              <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+                <Typography.Paragraph type="secondary">
+                  События интерфейса за 7 дней (page_view и др.), накопленные через{' '}
+                  <Typography.Text code>/analytics/events</Typography.Text>.
+                </Typography.Paragraph>
+                <Table
+                  rowKey="event_name"
+                  loading={analyticsQuery.isLoading}
+                  dataSource={analyticsQuery.data?.by_event ?? []}
+                  pagination={false}
+                  size="small"
+                  columns={[
+                    { title: 'Событие', dataIndex: 'event_name', key: 'e' },
+                    { title: 'Раз', dataIndex: 'count', key: 'c', width: 100 },
+                  ]}
+                />
               </Card>
             ),
           },
@@ -195,17 +336,28 @@ export const SuperadminPage: React.FC = () => {
             key: 'audit',
             label: 'Аудит',
             children: (
-              <Card style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
+              <Card
+                style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
+                extra={
+                  <Button icon={<DownloadOutlined />} onClick={() => void handleExportAuditCsv()}>
+                    Выгрузить CSV
+                  </Button>
+                }
+              >
                 <Table
                   rowKey="id"
                   loading={auditQuery.isLoading}
                   dataSource={auditQuery.data?.items ?? []}
                   columns={auditColumns}
+                  scroll={{ x: 900 }}
+                  size={isNarrow ? 'small' : 'middle'}
                   pagination={{
                     current: auditPage,
                     pageSize: 25,
                     total: auditQuery.data?.total ?? 0,
                     onChange: (p) => setAuditPage(p),
+                    size: isNarrow ? 'small' : 'default',
+                    showSizeChanger: false,
                   }}
                 />
               </Card>
@@ -225,6 +377,8 @@ export const SuperadminPage: React.FC = () => {
           const v = await createForm.validateFields()
           await createMut.mutateAsync({
             email: v.email,
+            last_name: v.last_name,
+            first_name: v.first_name,
             password: v.password,
             role: v.role,
             is_active: v.is_active ?? true,
@@ -234,6 +388,12 @@ export const SuperadminPage: React.FC = () => {
         <Form form={createForm} layout="vertical" initialValues={{ is_active: true, role: 'OPERATOR' }}>
           <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
             <Input />
+          </Form.Item>
+          <Form.Item name="last_name" label="Фамилия" rules={[{ required: true, whitespace: true }]}>
+            <Input autoComplete="family-name" />
+          </Form.Item>
+          <Form.Item name="first_name" label="Имя" rules={[{ required: true, whitespace: true }]}>
+            <Input autoComplete="given-name" />
           </Form.Item>
           <Form.Item name="password" label="Пароль" rules={[{ required: true, min: 8 }]}>
             <Input.Password />
@@ -267,6 +427,8 @@ export const SuperadminPage: React.FC = () => {
           const v = await editForm.validateFields()
           const payload: Record<string, unknown> = {
             email: v.email,
+            last_name: v.last_name,
+            first_name: v.first_name,
             role: v.role,
             is_active: v.is_active,
           }
@@ -279,6 +441,12 @@ export const SuperadminPage: React.FC = () => {
         <Form form={editForm} layout="vertical">
           <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
             <Input />
+          </Form.Item>
+          <Form.Item name="last_name" label="Фамилия" rules={[{ required: true, whitespace: true }]}>
+            <Input autoComplete="family-name" />
+          </Form.Item>
+          <Form.Item name="first_name" label="Имя" rules={[{ required: true, whitespace: true }]}>
+            <Input autoComplete="given-name" />
           </Form.Item>
           <Form.Item
             name="password"

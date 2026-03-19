@@ -8,7 +8,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.timezone import MOSCOW_TZ, add_seconds_to_start, format_moscow_iso
+from app.core.timezone import MOSCOW_TZ, add_seconds_to_start, format_moscow_date, format_moscow_datetime
 from app.models.stream import BroadcastSession, SponsorMention, StreamEvent
 from app.schemas.report import ReportMentionRow, ReportMentionsOut
 from app.utils.timecode import seconds_to_hhmmss
@@ -67,7 +67,7 @@ async def get_mentions_report(
                 broadcast_session_id=bs.id,
                 original_timecode=seconds_to_hhmmss(m.original_offset_sec),
                 adjusted_timecode=seconds_to_hhmmss(m.adjusted_offset_sec),
-                absolute_moscow_adjusted=format_moscow_iso(abs_adj),
+                absolute_moscow_adjusted=format_moscow_datetime(abs_adj),
                 is_adjusted=m.original_offset_sec != m.adjusted_offset_sec,
                 mention_created_at=m.created_at,
             )
@@ -87,10 +87,14 @@ def build_docx_report(rows: list[ReportMentionRow]) -> bytes:
             current_key = key
             mention_idx = 0
             doc.add_heading(row.stream_title, level=1)
-            doc.add_paragraph(f"Дата: {row.event_day_date.isoformat()}")
+            doc.add_paragraph(f"Дата: {format_moscow_date(row.event_day_date)}")
             doc.add_paragraph(f"День эфира: {row.day_index}")
         mention_idx += 1
-        doc.add_paragraph(f"Упоминание {mention_idx} — {row.adjusted_timecode}")
+        doc.add_paragraph(
+            f"Упоминание {mention_idx} — таймкод {row.adjusted_timecode}, "
+            f"абсолютное (МСК): {row.absolute_moscow_adjusted}, "
+            f"запись: {format_moscow_datetime(row.mention_created_at)}",
+        )
     buffer = BytesIO()
     doc.save(buffer)
     return buffer.getvalue()

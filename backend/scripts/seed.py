@@ -24,6 +24,8 @@ async def main() -> None:
             User(
                 id=uuid.uuid4(),
                 email="admin@example.com",
+                first_name="Администратор",
+                last_name="Системный",
                 password_hash=hash_password("ChangeMe123!"),
                 role=UserRole.SUPERADMIN,
                 is_active=True,
@@ -31,6 +33,8 @@ async def main() -> None:
             User(
                 id=uuid.uuid4(),
                 email="manager@example.com",
+                first_name="Михаил",
+                last_name="Петров",
                 password_hash=hash_password("ChangeMe123!"),
                 role=UserRole.STREAM_MANAGER,
                 is_active=True,
@@ -38,6 +42,8 @@ async def main() -> None:
             User(
                 id=uuid.uuid4(),
                 email="operator@example.com",
+                first_name="Алексей",
+                last_name="Сидоров",
                 password_hash=hash_password("ChangeMe123!"),
                 role=UserRole.OPERATOR,
                 is_active=True,

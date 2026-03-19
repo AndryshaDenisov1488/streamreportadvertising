@@ -14,10 +14,24 @@ export const setAccessToken = (token: string | null) => {
 
 type FetchOptions = RequestInit & { skipAuth?: boolean }
 
+const getOrCreateRequestId = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID()
+    }
+  } catch {
+    /* ignore */
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+}
+
 const buildHeaders = (init?: HeadersInit, token?: string | null): HeadersInit => {
   const h = new Headers(init ?? {})
   if (token) {
     h.set('Authorization', `Bearer ${token}`)
+  }
+  if (!h.has('X-Request-ID')) {
+    h.set('X-Request-ID', getOrCreateRequestId())
   }
   if (!h.has('Content-Type') && init && 'body' in (init as object)) {
     /* empty */

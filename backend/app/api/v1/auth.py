@@ -6,10 +6,39 @@ from app.core.deps import AnyAuthenticated
 from app.core.limiter import limiter
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, MeOut, RefreshRequest, TokenResponse
+from app.schemas.platform import AcceptInviteIn
 from app.schemas.user import UserOut
-from app.services import auth_service
+from app.services import auth_service, invite_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/accept-invite", response_model=TokenResponse)
+async def accept_invite_route(
+    request: Request,
+    response: Response,
+    body: AcceptInviteIn,
+    session: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    user = await invite_service.accept_invite(session, body)
+    client_host = request.client.host if request.client else None
+    access, refresh, _exp = await auth_service.create_fresh_session(
+        session,
+        user=user,
+        request_ip=client_host,
+    )
+    settings = get_settings()
+    max_age = settings.jwt_refresh_expire_days * 24 * 60 * 60
+    response.set_cookie(
+        key=settings.refresh_cookie_name,
+        value=refresh,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+        max_age=max_age,
+        path="/",
+    )
+    return TokenResponse(access_token=access, user=UserOut.model_validate(user))
 
 
 @router.post("/login", response_model=TokenResponse)

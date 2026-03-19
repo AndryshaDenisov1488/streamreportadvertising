@@ -79,6 +79,35 @@ async def refresh_access_token(session: AsyncSession, refresh_token: str) -> tup
     return user, access
 
 
+async def create_fresh_session(
+    session: AsyncSession,
+    *,
+    user: User,
+    request_ip: str | None,
+) -> tuple[str, str, datetime]:
+    """Выдать access + refresh после регистрации по приглашению (и записать LOGIN)."""
+    refresh_token, jti, exp = create_refresh_token_payload()
+    session.add(
+        RefreshToken(
+            user_id=user.id,
+            jti=jti,
+            expires_at=exp,
+        )
+    )
+    await write_audit(
+        session,
+        user_id=user.id,
+        action_type=AuditActionType.LOGIN,
+        entity_type="user",
+        entity_id=str(user.id),
+        payload_before=None,
+        payload_after={"email": user.email, "ip": request_ip, "via": "accept_invite"},
+    )
+    await session.commit()
+    access = create_access_token(subject=str(user.id), role=user.role.value)
+    return access, refresh_token, exp
+
+
 async def logout_user(session: AsyncSession, *, user_id: UUID, refresh_token: str | None) -> None:
     if not refresh_token:
         await write_audit(

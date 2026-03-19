@@ -2,6 +2,11 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 html,
 body,
 #root {
@@ -13,4 +18,84 @@ body {
   font-family: Inter, system-ui, -apple-system, sans-serif;
   background: #070b10;
   color: rgba(255, 255, 255, 0.88);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  touch-action: manipulation;
+}
+
+/* Доступность: явный фокус с клавиатуры */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(105, 177, 255, 0.95);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* iOS: поля <16px при фокусе вызывают зум — на телефоне держим минимум 16px */
+@media (max-width: 576px) {
+  input,
+  textarea,
+  select,
+  .ant-input,
+  .ant-input-number-input,
+  .ant-select-selection-search-input {
+    font-size: 16px !important;
+  }
+}
+
+/* Таблицы: горизонтальный скролл без «ломания» вёрстки */
+.ant-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Модалки на узком экране — почти на всю ширину + отступы под safe area */
+@media (max-width: 576px) {
+  .ant-modal-root .ant-modal {
+    max-width: calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right));
+    margin: 12px auto;
+    padding-bottom: env(safe-area-inset-bottom, 12px);
+  }
+
+  .ant-modal-root .ant-modal-body {
+    max-height: min(70vh, calc(100dvh - 200px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Карточки: заголовок и extra в колонку на узком экране */
+@media (max-width: 576px) {
+  .ant-card .ant-card-head-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ant-card-extra {
+    margin-inline-start: 0 !important;
+    padding-top: 8px;
+  }
+}
+
+/* Drawer / dropdown удобнее на тач-экране */
+@media (pointer: coarse) {
+  .ant-btn:not(.ant-btn-sm) {
+    min-height: 44px;
+  }
+
+  .ant-list-item-action > li {
+    padding-inline: 4px;
+  }
 }

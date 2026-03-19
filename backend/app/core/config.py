@@ -22,6 +22,18 @@ class Settings(BaseSettings):
 
     api_v1_prefix: str = "/api/v1"
 
+    app_version: str = "1.0.0"
+
+    sentry_dsn: str = ""
+    sentry_environment: str = "development"
+    sentry_traces_sample_rate: float = 0.1
+
+    # Опционально: POST JSON при событиях эфира (начало/конец)
+    external_webhook_url: str = ""
+
+    # Дни хранения журнала аудита (0 = не удалять; фоновые задачи — вне HTTP)
+    audit_retention_days: int = 0
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

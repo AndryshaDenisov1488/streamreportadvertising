@@ -3,6 +3,7 @@ import { App as AntApp, Button, Card, Form, Input, Typography } from 'antd'
 import React from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 
+import { BrandLogo } from '@/components/BrandLogo'
 import { useAuth } from '@/auth/AuthContext'
 
 export const LoginPage: React.FC = () => {
@@ -26,10 +27,12 @@ export const LoginPage: React.FC = () => {
   return (
     <div
       style={{
-        minHeight: '100%',
+        minHeight: '100dvh',
         display: 'grid',
         placeItems: 'center',
         padding: 24,
+        paddingTop: 'max(24px, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(24px, env(safe-area-inset-bottom, 0px))',
         background: 'radial-gradient(1200px 600px at 20% 0%, rgba(61,126,255,0.18), transparent), #070b10',
       }}
     >
@@ -37,7 +40,10 @@ export const LoginPage: React.FC = () => {
         style={{ width: 420, maxWidth: '100%', borderColor: '#1f2a3a', background: '#0d1219' }}
         bordered
       >
-        <Typography.Title level={3} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <BrandLogo height={40} style={{ maxWidth: 'min(100%, 260px)' }} />
+        </div>
+        <Typography.Title level={3} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)', textAlign: 'center' }}>
           Панель эфиров
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 24 }}>

@@ -6,7 +6,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.timezone import add_seconds_to_start, format_moscow_iso, utc_now
+from app.core.timezone import add_seconds_to_start, format_moscow_datetime, utc_now
 from app.models.enums import AuditActionType, UserRole
 from app.models.stream import BroadcastSession, MentionAdjustment, SponsorMention, StreamDay, StreamEvent
 from app.models.user import User
@@ -22,6 +22,8 @@ from app.schemas.stream import (
     StreamEventUpdate,
 )
 from app.services.audit_service import write_audit
+from app.services.notification_service import create_for_users_with_roles
+from app.utils.display_name import user_display_name
 from app.utils.timecode import seconds_to_hhmmss
 
 
@@ -42,8 +44,8 @@ def _mention_to_out(mention: SponsorMention) -> SponsorMentionOut:
         adjusted_offset_sec=mention.adjusted_offset_sec,
         original_timecode=seconds_to_hhmmss(mention.original_offset_sec),
         adjusted_timecode=seconds_to_hhmmss(mention.adjusted_offset_sec),
-        absolute_moscow_original=format_moscow_iso(abs_orig),
-        absolute_moscow_adjusted=format_moscow_iso(abs_adj),
+        absolute_moscow_original=format_moscow_datetime(abs_orig),
+        absolute_moscow_adjusted=format_moscow_datetime(abs_adj),
         is_adjusted=mention.original_offset_sec != mention.adjusted_offset_sec,
         created_at=mention.created_at,
         adjustments=adjustments,
@@ -68,11 +70,31 @@ async def _active_broadcast_ids(session: AsyncSession) -> set[UUID]:
     return set(result.scalars().all())
 
 
+async def _users_by_ids(session: AsyncSession, user_ids: set[UUID]) -> dict[UUID, User]:
+    if not user_ids:
+        return {}
+    result = await session.execute(select(User).where(User.id.in_(list(user_ids))))
+    return {u.id: u for u in result.scalars().all()}
+
+
+async def _locked_by_display_name(session: AsyncSession, locked_by_user_id: UUID | None) -> str | None:
+    if locked_by_user_id is None:
+        return None
+    result = await session.execute(select(User).where(User.id == locked_by_user_id))
+    u = result.scalar_one_or_none()
+    return user_display_name(u) if u else None
+
+
 async def list_stream_events(session: AsyncSession) -> list[StreamEventListOut]:
     active_ids = await _active_broadcast_ids(session)
     result = await session.execute(select(StreamEvent).order_by(StreamEvent.start_date.desc(), StreamEvent.created_at.desc()))
+    events = list(result.scalars().all())
+    lock_ids = {e.locked_by_user_id for e in events if e.locked_by_user_id}
+    users_map = await _users_by_ids(session, lock_ids)
     items: list[StreamEventListOut] = []
-    for ev in result.scalars().all():
+    for ev in events:
+        lock_u = users_map.get(ev.locked_by_user_id) if ev.locked_by_user_id else None
+        locked_by_display_name = user_display_name(lock_u) if lock_u else None
         items.append(
             StreamEventListOut(
                 id=ev.id,
@@ -80,6 +102,7 @@ async def list_stream_events(session: AsyncSession) -> list[StreamEventListOut]:
                 start_date=ev.start_date,
                 duration_days=ev.duration_days,
                 locked_by_user_id=ev.locked_by_user_id,
+                locked_by_display_name=locked_by_display_name,
                 has_active_broadcast=ev.id in active_ids,
                 created_at=ev.created_at,
             )
@@ -90,6 +113,7 @@ async def list_stream_events(session: AsyncSession) -> list[StreamEventListOut]:
 async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> StreamEventDetailOut:
     ev = await _get_event(session, stream_id)
     ev.days.sort(key=lambda d: d.day_index)
+    locked_by_display_name = await _locked_by_display_name(session, ev.locked_by_user_id)
     active_broadcasts = [
         BroadcastSessionOut(
             id=b.id,
@@ -109,6 +133,7 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         start_date=ev.start_date,
         duration_days=ev.duration_days,
         locked_by_user_id=ev.locked_by_user_id,
+        locked_by_display_name=locked_by_display_name,
         days=[StreamDayOut.model_validate(d) for d in ev.days],
         active_broadcasts=active_broadcasts,
         created_at=ev.created_at,
@@ -338,6 +363,13 @@ async def start_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID
         entity_id=str(bs.id),
         payload_after={"stream_event_id": str(stream_id), "day_index": day_index, "started_at": started.isoformat()},
         payload_before=None,
+    )
+    await create_for_users_with_roles(
+        session,
+        roles=[UserRole.STREAM_MANAGER, UserRole.SUPERADMIN],
+        title="Начало эфира",
+        body=f"{ev.title} — день {day_index}",
+        kind="broadcast_start",
     )
     await session.commit()
     await session.refresh(bs)

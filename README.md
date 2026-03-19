@@ -8,6 +8,26 @@
 - **Frontend:** React 18, Vite, TypeScript, Ant Design, TanStack Query
 - **Инфра:** Docker Compose, Nginx
 
+## Возможности платформы (обзор)
+
+| Область | Что сделано |
+|--------|-------------|
+| Наблюдаемость | Заголовок `X-Request-ID`, опционально **Sentry** (backend + `VITE_SENTRY_DSN` на фронте) |
+| Health | `GET /health` (liveness), `GET /health/ready` (БД + ревизия Alembic) |
+| Безопасность | CSP в Nginx, проброс `X-Request-ID`; cookie refresh настраиваются через `REFRESH_COOKIE_*` |
+| WebSocket | Лимит подписчиков на комнату, сообщения **presence** (число зрителей пульта) |
+| Уведомления | Таблица `notifications`, API `/notifications`, колокольчик в шапке; при старте эфира — уведомления менеджерам/админам |
+| Интеграции | `EXTERNAL_WEBHOOK_URL` — POST при start/stop эфира |
+| Аудит | Выгрузка **CSV** (`GET /api/v1/audit-logs/export.csv`), очистка `POST /audit-logs/purge` |
+| Продуктовая аналитика | `POST /analytics/events`, сводка `/analytics/summary` (суперадмин, вкладка «Продукт») |
+| Приглашения | `POST /users/invites`, регистрация `POST /auth/accept-invite` |
+| Чек-лист эфира | `GET/PUT /stream-events/{id}/checklist` (микрофон, сцена, слоты, ключи) |
+| PWA | `vite-plugin-pwa` — офлайн-кэш статики |
+| E2E | Playwright: `npm run test:e2e` в `frontend` (нужен стенд, см. ниже) |
+| Storybook | `npm run storybook` — компонент `BrandLogo` |
+| Кодоген API | `npm run codegen:api` (нужен запущенный backend с `/openapi.json`) |
+| Масштаб | Рекомендации по воркерам: [docs/WORKERS_AND_SCALE.md](docs/WORKERS_AND_SCALE.md) |
+
 ## Быстрый старт (Docker)
 
 ```bash
@@ -16,6 +36,14 @@ cp .env.example .env
 
 docker compose up --build
 ```
+
+Если при сборке **backend** `pip` ругается на **SSL** (`UNEXPECTED_EOF_WHILE_READING`) или **таймаут** до `pypi.org` — это сеть/фильтрация, не код. В корневом `.env` задайте зеркало и пересоберите:
+
+```env
+PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+Затем `docker compose build --no-cache backend` или снова `docker compose up --build`. Альтернатива: VPN или другая сеть; временно отключить «сканирование HTTPS» в антивирусе.
 
 Откройте http://localhost — SPA, API: http://localhost/api/v1/...
 
@@ -53,7 +81,17 @@ npm install
 npm run dev
 ```
 
-По умолчанию Vite проксирует `/api` и `/ws` на `http://127.0.0.1:8000` (см. `vite.config.ts`).
+По умолчанию Vite проксирует `/api`, `/health`, `/openapi.json` и `/ws` на `http://127.0.0.1:8000` (см. `frontend/vite.config.ts`).
+
+### E2E (Playwright)
+
+```bash
+cd frontend
+npx playwright install   # один раз, ставит браузеры
+# Поднимите приложение (docker compose или dev), затем:
+set E2E_BASE_URL=http://localhost
+npm run test:e2e
+```
 
 ### Тесты backend
 

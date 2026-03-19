@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 import type { UserOut } from '@/api/types'
 import { getAccessToken, loginRequest, logoutRequest, meRequest, setAccessToken } from '@/api/client'
+import { userDisplayName } from '@/utils/userDisplay'
 
 type AuthState = {
   user: UserOut | null
@@ -43,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string) => {
     const data = await loginRequest(email, password)
     setUser(data.user)
-    message.success('Вход выполнен')
+    message.success(`Здравствуйте, ${userDisplayName(data.user)}`)
   }, [])
 
   const logout = useCallback(async () => {

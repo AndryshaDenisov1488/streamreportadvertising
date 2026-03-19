@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom'
 import type { StreamEventListOut } from '@/api/types'
 import { apiFetch } from '@/api/client'
 import { AppLayout } from '@/layouts/AppLayout'
+import { formatDateRu } from '@/utils/datetime'
 import { useAuth } from '@/auth/AuthContext'
 
 export const OperatorHomePage: React.FC = () => {
@@ -20,7 +21,10 @@ export const OperatorHomePage: React.FC = () => {
 
   const handleCardClick = (ev: StreamEventListOut) => {
     if (ev.locked_by_user_id && ev.locked_by_user_id !== user?.id) {
-      message.warning('Событие в работе у другого оператора')
+      const who = ev.locked_by_display_name?.trim()
+      message.warning(
+        who ? `Событие в работе у ${who}` : 'Событие в работе у другого оператора',
+      )
     }
   }
 
@@ -71,13 +75,17 @@ export const OperatorHomePage: React.FC = () => {
                         {ev.title}
                       </Typography.Title>
                       <Typography.Text type="secondary">
-                        Старт: {ev.start_date} · {ev.duration_days} дн.
+                        Старт: {formatDateRu(ev.start_date)} · {ev.duration_days} дн.
                       </Typography.Text>
                       <Space wrap>
                         {ev.has_active_broadcast ? <Tag color="green">Эфир</Tag> : <Tag>Нет эфира</Tag>}
                         {ev.locked_by_user_id ? (
                           <Tag color={foreignLock ? 'red' : 'blue'}>
-                            {foreignLock ? 'Занято' : 'У вас в работе'}
+                            {foreignLock
+                              ? ev.locked_by_display_name
+                                ? `Занято: ${ev.locked_by_display_name}`
+                                : 'Занято'
+                              : 'У вас в работе'}
                           </Tag>
                         ) : (
                           <Tag>Свободно</Tag>

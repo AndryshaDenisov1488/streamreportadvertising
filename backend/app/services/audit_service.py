@@ -1,7 +1,8 @@
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditLog
@@ -50,3 +51,28 @@ async def write_audit(
         payload_after=payload_after,
     )
     session.add(log)
+
+
+async def list_audit_logs_all(
+    session: AsyncSession,
+    *,
+    user_id: UUID | None,
+    action_type: str | None,
+    limit: int = 50_000,
+) -> list[AuditLog]:
+    q = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)
+    if user_id is not None:
+        q = q.where(AuditLog.user_id == user_id)
+    if action_type:
+        q = q.where(AuditLog.action_type == action_type)
+    result = await session.execute(q)
+    return list(result.scalars().all())
+
+
+async def purge_audit_older_than(session: AsyncSession, *, days: int) -> int:
+    if days <= 0:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    result = await session.execute(delete(AuditLog).where(AuditLog.created_at < cutoff))
+    await session.commit()
+    return int(result.rowcount or 0)

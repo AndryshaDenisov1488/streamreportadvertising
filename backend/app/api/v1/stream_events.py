@@ -1,10 +1,13 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import ManagerOrAdmin, OperatorOrAbove
 from app.db.session import get_db
+from app.schemas.platform import ChecklistOut, ChecklistUpdate
 from app.schemas.stream import (
     BroadcastSessionOut,
     SponsorMentionOut,
@@ -14,7 +17,8 @@ from app.schemas.stream import (
     StreamEventUpdate,
     StreamLockBody,
 )
-from app.services import stream_service
+from app.services import checklist_service, stream_service
+from app.utils.webhook import post_external_webhook
 from app.websocket.hub import StreamEventHub
 
 router = APIRouter(prefix="/stream-events", tags=["stream-events"])
@@ -104,6 +108,7 @@ async def start_broadcast_route(
     stream_id: UUID,
     day_index: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     actor: OperatorOrAbove,
     session: AsyncSession = Depends(get_db),
 ) -> BroadcastSessionOut:
@@ -120,6 +125,16 @@ async def start_broadcast_route(
             },
         },
     )
+    background_tasks.add_task(
+        post_external_webhook,
+        "broadcast_started",
+        {
+            "stream_event_id": str(stream_id),
+            "day_index": day_index,
+            "session_id": str(out.id),
+            "started_at": out.started_at.isoformat(),
+        },
+    )
     return out
 
 
@@ -128,12 +143,70 @@ async def stop_broadcast_route(
     stream_id: UUID,
     day_index: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     actor: OperatorOrAbove,
     session: AsyncSession = Depends(get_db),
 ) -> None:
     await stream_service.stop_broadcast(session, actor=actor, stream_id=stream_id, day_index=day_index)
     hub: StreamEventHub = request.app.state.ws_hub
     await hub.publish(stream_id, {"type": "broadcast_stopped", "payload": {"day_index": day_index}})
+    background_tasks.add_task(
+        post_external_webhook,
+        "broadcast_stopped",
+        {"stream_event_id": str(stream_id), "day_index": day_index},
+    )
+
+
+@router.get("/{stream_id}/checklist", response_model=ChecklistOut)
+async def get_checklist_route(
+    stream_id: UUID,
+    user: OperatorOrAbove,
+    session: AsyncSession = Depends(get_db),
+) -> ChecklistOut:
+    row = await checklist_service.get_checklist_row(session, stream_event_id=stream_id, user_id=user.id)
+    if not row:
+        return ChecklistOut(
+            stream_event_id=stream_id,
+            mic_ok=False,
+            scene_ok=False,
+            sponsor_slots_ok=False,
+            keys_tested_ok=False,
+            updated_at=datetime.now(timezone.utc),
+        )
+    return ChecklistOut(
+        stream_event_id=row.stream_event_id,
+        mic_ok=row.mic_ok,
+        scene_ok=row.scene_ok,
+        sponsor_slots_ok=row.sponsor_slots_ok,
+        keys_tested_ok=row.keys_tested_ok,
+        updated_at=row.updated_at,
+    )
+
+
+@router.put("/{stream_id}/checklist", response_model=ChecklistOut)
+async def put_checklist_route(
+    stream_id: UUID,
+    body: ChecklistUpdate,
+    user: OperatorOrAbove,
+    session: AsyncSession = Depends(get_db),
+) -> ChecklistOut:
+    row = await checklist_service.update_checklist(
+        session,
+        stream_event_id=stream_id,
+        user=user,
+        mic_ok=body.mic_ok,
+        scene_ok=body.scene_ok,
+        sponsor_slots_ok=body.sponsor_slots_ok,
+        keys_tested_ok=body.keys_tested_ok,
+    )
+    return ChecklistOut(
+        stream_event_id=row.stream_event_id,
+        mic_ok=row.mic_ok,
+        scene_ok=row.scene_ok,
+        sponsor_slots_ok=row.sponsor_slots_ok,
+        keys_tested_ok=row.keys_tested_ok,
+        updated_at=row.updated_at,
+    )
 
 
 @router.get("/{stream_id}/days/{day_index}/mentions", response_model=list[SponsorMentionOut])

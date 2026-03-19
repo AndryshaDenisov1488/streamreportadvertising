@@ -6,11 +6,17 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Таймаут и зеркало: при SSLError/EOF к pypi.org задайте build-arg (см. .env.example и README)
+ENV PIP_DEFAULT_TIMEOUT=300
+ARG PIP_INDEX_URL=https://pypi.org/simple
+RUN pip install --no-cache-dir --retries 15 --default-timeout=120 \
+    -i "${PIP_INDEX_URL}" \
+    -r requirements.txt
 
 COPY alembic.ini alembic.ini
 COPY alembic ./alembic
 COPY app ./app
+COPY scripts ./scripts
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

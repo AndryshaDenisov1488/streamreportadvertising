@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 MOSCOW_TZ = ZoneInfo("Europe/Moscow")
@@ -18,8 +18,14 @@ def to_moscow(dt: datetime) -> datetime:
     return dt.astimezone(MOSCOW_TZ)
 
 
-def format_moscow_iso(dt: datetime) -> str:
-    return to_moscow(dt).isoformat()
+def format_moscow_datetime(dt: datetime) -> str:
+    """Отображение даты и времени в часовом поясе МСК: dd.mm.yyyy HH:mm (24ч)."""
+    return to_moscow(dt).strftime("%d.%m.%Y %H:%M")
+
+
+def format_moscow_date(d: date) -> str:
+    """Только дата в МСК-смысле (календарная дата события): dd.mm.yyyy."""
+    return d.strftime("%d.%m.%Y")
 
 
 def add_seconds_to_start(started_at: datetime, offset_sec: int) -> datetime:

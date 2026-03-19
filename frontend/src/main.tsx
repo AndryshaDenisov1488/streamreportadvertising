@@ -7,8 +7,23 @@ import { BrowserRouter } from 'react-router-dom'
 
 import { AuthProvider } from '@/auth/AuthContext'
 import { App } from '@/App'
+import { AnalyticsTracker } from '@/components/AnalyticsTracker'
 import { appTheme } from '@/theme'
 import '@/styles/global.css'
+
+if (import.meta.env.VITE_SENTRY_DSN) {
+  void import('@sentry/react')
+    .then((Sentry) => {
+      Sentry.init({
+        dsn: import.meta.env.VITE_SENTRY_DSN,
+        environment: import.meta.env.MODE,
+        tracesSampleRate: 0.15,
+      })
+    })
+    .catch(() => {
+      /* пакет не установлен — пропускаем */
+    })
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AntApp>
           <BrowserRouter>
             <AuthProvider>
+              <AnalyticsTracker />
               <App />
             </AuthProvider>
           </BrowserRouter>

@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from app.api.health import router as health_router
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.limiter import limiter
+from app.middleware.request_id import RequestIDMiddleware
 from app.websocket.hub import StreamEventHub
 
 
@@ -19,6 +21,19 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    if settings.sentry_dsn:
+        try:
+            import sentry_sdk
+
+            sentry_sdk.init(
+                dsn=settings.sentry_dsn,
+                environment=settings.sentry_environment,
+                release=settings.app_version,
+                traces_sample_rate=settings.sentry_traces_sample_rate,
+            )
+        except ImportError:
+            pass
+
     app = FastAPI(title="Stream Sponsor Platform API", lifespan=lifespan)
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -29,11 +44,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(RequestIDMiddleware)
 
-    @app.get("/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
-
+    app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
 

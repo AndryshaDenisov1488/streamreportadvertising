@@ -11,6 +11,12 @@ export const appTheme = {
     fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
     colorText: 'rgba(255,255,255,0.88)',
     colorTextSecondary: 'rgba(255,255,255,0.55)',
+    /* Чуть крупнее базовый текст и контролы — удобнее на телефоне оператора */
+    fontSize: 15,
+    fontSizeLG: 16,
+    controlHeight: 40,
+    controlHeightLG: 52,
+    paddingContentHorizontalLG: 20,
   },
   components: {
     Layout: {
@@ -21,10 +27,20 @@ export const appTheme = {
     Table: {
       headerBg: '#0f1622',
       headerColor: 'rgba(255,255,255,0.75)',
+      cellPaddingBlockMD: 12,
+      cellPaddingInlineMD: 10,
     },
     Button: {
       controlHeightLG: 52,
       fontSizeLG: 17,
+      paddingInlineLG: 20,
+    },
+    Card: {
+      paddingLG: 16,
+    },
+    List: {
+      itemPaddingSM: '12px 0',
+      itemPaddingLG: '14px 0',
     },
   },
 }

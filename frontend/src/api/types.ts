@@ -3,6 +3,10 @@ export type UserRole = 'SUPERADMIN' | 'STREAM_MANAGER' | 'OPERATOR'
 export type UserOut = {
   id: string
   email: string
+  first_name: string
+  last_name: string
+  /** «Фамилия Имя», для обращения в интерфейсе */
+  display_name: string
   role: UserRole
   is_active: boolean
   created_at: string
@@ -14,6 +18,8 @@ export type StreamEventListOut = {
   start_date: string
   duration_days: number
   locked_by_user_id: string | null
+  /** Фамилия Имя того, кто взял событие в работу */
+  locked_by_display_name: string | null
   has_active_broadcast: boolean
   created_at: string
 }
@@ -36,12 +42,22 @@ export type BroadcastSessionOut = {
   is_active: boolean
 }
 
+export type BroadcastChecklistOut = {
+  stream_event_id: string
+  mic_ok: boolean
+  scene_ok: boolean
+  sponsor_slots_ok: boolean
+  keys_tested_ok: boolean
+  updated_at: string
+}
+
 export type StreamEventDetailOut = {
   id: string
   title: string
   start_date: string
   duration_days: number
   locked_by_user_id: string | null
+  locked_by_display_name: string | null
   days: StreamDayOut[]
   active_broadcasts: BroadcastSessionOut[]
   created_at: string

@@ -1,20 +1,40 @@
 import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons'
-import { App as AntApp, Button, Card, DatePicker, Form, Input, Select, Space, Typography } from 'antd'
+import {
+  App as AntApp,
+  Badge,
+  Button,
+  Card,
+  Col,
+  DatePicker,
+  Form,
+  Grid,
+  Input,
+  List,
+  Row,
+  Select,
+  Space,
+  Typography,
+} from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import type { StreamEventDetailOut } from '@/api/types'
+import type { SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
 import { apiFetch } from '@/api/client'
+import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
+import { formatDateTimeRu } from '@/utils/datetime'
 
 export const ManagerStreamPage: React.FC = () => {
   const { id } = useParams()
   const streamId = id as string
+  const screens = Grid.useBreakpoint()
+  const isNarrow = !screens.sm
   const { message } = AntApp.useApp()
   const qc = useQueryClient()
   const [form] = Form.useForm()
+  const [mentionDay, setMentionDay] = useState(1)
 
   const { data, isLoading } = useQuery({
     queryKey: ['stream', streamId],
@@ -39,6 +59,27 @@ export const ManagerStreamPage: React.FC = () => {
       ...daysVals,
     })
   }, [data, form])
+
+  useEffect(() => {
+    if (!data) {
+      return
+    }
+    if (mentionDay > data.duration_days) {
+      setMentionDay(1)
+    }
+  }, [data, mentionDay])
+
+  const mentionsQuery = useQuery({
+    queryKey: ['mentions', streamId, mentionDay],
+    enabled: Boolean(streamId) && Boolean(data),
+    queryFn: async () =>
+      (await apiFetch(`/stream-events/${streamId}/days/${mentionDay}/mentions`)) as SponsorMentionOut[],
+  })
+
+  useStreamWs(streamId, () => {
+    void qc.invalidateQueries({ queryKey: ['mentions', streamId] })
+    void qc.invalidateQueries({ queryKey: ['stream', streamId] })
+  })
 
   const saveMut = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
@@ -86,6 +127,61 @@ export const ManagerStreamPage: React.FC = () => {
       <Typography.Title level={3} style={{ marginTop: 0 }}>
         Редактирование
       </Typography.Title>
+
+      <Card
+        title="Упоминания оператора"
+        style={{ marginBottom: 16, borderColor: '#1f2a3a', background: '#0d1219' }}
+        styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          То же, что видит оператор в пульте: отметки по ходу эфира. Список обновляется при появлении новых записей
+          (WebSocket).
+        </Typography.Paragraph>
+        {data ? (
+          <>
+            <Typography.Text type="secondary">День эфира</Typography.Text>
+            <Select
+              style={{ width: '100%', maxWidth: 360, marginTop: 8, marginBottom: 16, display: 'block' }}
+              value={mentionDay}
+              options={data.days.map((d) => ({ label: `День ${d.day_index}`, value: d.day_index }))}
+              onChange={(v) => setMentionDay(v)}
+            />
+            <List
+              loading={mentionsQuery.isLoading}
+              dataSource={mentionsQuery.data ?? []}
+              locale={{ emptyText: 'Пока нет упоминаний за этот день' }}
+              renderItem={(item) => (
+                <List.Item>
+                  <List.Item.Meta
+                    title={
+                      <Space wrap>
+                        <Typography.Text strong>{item.adjusted_timecode}</Typography.Text>
+                        {item.is_adjusted ? <Badge status="warning" text="Скорректировано" /> : null}
+                      </Space>
+                    }
+                    description={
+                      <Space direction="vertical" size={4}>
+                        <Typography.Text type="secondary">
+                          Абсолютное (МСК): {item.absolute_moscow_adjusted}
+                        </Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          Исходный таймкод: {item.original_timecode}
+                        </Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          Запись: {formatDateTimeRu(item.created_at)}
+                        </Typography.Text>
+                      </Space>
+                    }
+                  />
+                </List.Item>
+              )}
+            />
+          </>
+        ) : (
+          <Typography.Text type="secondary">Загрузка события…</Typography.Text>
+        )}
+      </Card>
+
       <Card loading={isLoading} style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
         <Form
           layout="vertical"
@@ -97,23 +193,27 @@ export const ManagerStreamPage: React.FC = () => {
           <Form.Item name="title" label="Название" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Space wrap style={{ width: '100%' }}>
-            <Form.Item name="start_date" label="Дата старта" rules={[{ required: true }]}>
-              <DatePicker format="DD.MM.YYYY" />
-            </Form.Item>
-            <Form.Item name="duration_days" label="Дней" rules={[{ required: true }]}>
-              <Select
-                style={{ width: 160 }}
-                options={[
-                  { label: '1', value: 1 },
-                  { label: '2', value: 2 },
-                  { label: '3', value: 3 },
-                  { label: '4', value: 4 },
-                  { label: '5', value: 5 },
-                ]}
-              />
-            </Form.Item>
-          </Space>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="start_date" label="Дата старта" rules={[{ required: true }]}>
+                <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="duration_days" label="Дней" rules={[{ required: true }]}>
+                <Select
+                  style={{ width: '100%', minWidth: isNarrow ? undefined : 160 }}
+                  options={[
+                    { label: '1', value: 1 },
+                    { label: '2', value: 2 },
+                    { label: '3', value: 3 },
+                    { label: '4', value: 4 },
+                    { label: '5', value: 5 },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Typography.Title level={5}>Дни (URL и ключи)</Typography.Title>
           <Form.Item shouldUpdate noStyle>
@@ -128,13 +228,13 @@ export const ManagerStreamPage: React.FC = () => {
                     title={`День ${idx}`}
                     style={{ marginBottom: 12, borderColor: '#1f2a3a', background: '#0a1018' }}
                   >
-                    <Form.Item name={`day_${idx}_stream_url`} label="stream_url">
+                    <Form.Item name={`day_${idx}_stream_url`} label="Ссылка на трансляцию">
                       <Input />
                     </Form.Item>
-                    <Form.Item name={`day_${idx}_server_url`} label="server_url">
+                    <Form.Item name={`day_${idx}_server_url`} label="URL сервера трансляции">
                       <Input />
                     </Form.Item>
-                    <Form.Item name={`day_${idx}_stream_key`} label="stream_key">
+                    <Form.Item name={`day_${idx}_stream_key`} label="Ключ трансляции">
                       <Input />
                     </Form.Item>
                   </Card>
@@ -143,7 +243,14 @@ export const ManagerStreamPage: React.FC = () => {
             }}
           </Form.Item>
 
-          <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={saveMut.isPending}>
+          <Button
+            type="primary"
+            htmlType="submit"
+            icon={<SaveOutlined />}
+            loading={saveMut.isPending}
+            size="large"
+            block={isNarrow}
+          >
             Сохранить
           </Button>
         </Form>

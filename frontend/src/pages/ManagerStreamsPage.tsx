@@ -5,6 +5,7 @@ import {
   Card,
   DatePicker,
   Form,
+  Grid,
   Input,
   Modal,
   Select,
@@ -21,13 +22,17 @@ import { Link } from 'react-router-dom'
 
 import type { StreamEventListOut } from '@/api/types'
 import { apiFetch } from '@/api/client'
+import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
 import { AppLayout } from '@/layouts/AppLayout'
+import { formatDateRu } from '@/utils/datetime'
 
 dayjs.locale('ru')
 
 export const ManagerStreamsPage: React.FC = () => {
   const { message } = AntApp.useApp()
   const qc = useQueryClient()
+  const screens = Grid.useBreakpoint()
+  const isNarrow = !screens.md
   const [open, setOpen] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [createForm] = Form.useForm()
@@ -92,7 +97,13 @@ export const ManagerStreamsPage: React.FC = () => {
 
   const columns: ColumnsType<StreamEventListOut> = [
     { title: 'Название', dataIndex: 'title', key: 'title' },
-    { title: 'Старт', dataIndex: 'start_date', key: 'start_date', width: 140 },
+    {
+      title: 'Старт',
+      dataIndex: 'start_date',
+      key: 'start_date',
+      width: 120,
+      render: (v: string) => formatDateRu(v),
+    },
     { title: 'Дней', dataIndex: 'duration_days', key: 'duration_days', width: 90 },
     {
       title: 'Статус',
@@ -103,7 +114,11 @@ export const ManagerStreamsPage: React.FC = () => {
             {r.has_active_broadcast ? 'Эфир активен' : 'Нет эфира'}
           </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {r.locked_by_user_id ? 'В работе у оператора' : 'Свободно'}
+            {r.locked_by_user_id
+              ? r.locked_by_display_name
+                ? `В работе: ${r.locked_by_display_name}`
+                : 'В работе у оператора'
+              : 'Свободно'}
           </Typography.Text>
         </Space>
       ),
@@ -128,7 +143,19 @@ export const ManagerStreamsPage: React.FC = () => {
         </Typography.Text>
       }
     >
-      <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} align="start" wrap>
+      <Card
+        title="Статистика операторов"
+        style={{ marginBottom: 16, borderColor: '#1f2a3a', background: '#0d1219' }}
+        styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
+      >
+        <OperatorStatsPanel compact />
+      </Card>
+      <Space
+        style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }}
+        align="start"
+        direction={isNarrow ? 'vertical' : 'horizontal'}
+        size="middle"
+      >
         <div>
           <Typography.Title level={3} style={{ marginTop: 0 }}>
             События
@@ -137,11 +164,11 @@ export const ManagerStreamsPage: React.FC = () => {
             Создание, редактирование, отчёты и выгрузка в Word.
           </Typography.Paragraph>
         </div>
-        <Space wrap>
-          <Button icon={<DownloadOutlined />} onClick={() => setReportOpen(true)}>
+        <Space wrap style={{ width: isNarrow ? '100%' : undefined }}>
+          <Button icon={<DownloadOutlined />} onClick={() => setReportOpen(true)} block={isNarrow} size="large">
             Экспорт Word
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)} block={isNarrow} size="large">
             Новое событие
           </Button>
         </Space>
@@ -154,6 +181,8 @@ export const ManagerStreamsPage: React.FC = () => {
           dataSource={data ?? []}
           columns={columns}
           pagination={{ pageSize: 10 }}
+          scroll={{ x: 720 }}
+          size={isNarrow ? 'small' : 'middle'}
         />
       </Card>
 

@@ -19,9 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
+    # Тип создаётся один раз вместе с таблицей users (иначе SQLAlchemy дублирует CREATE TYPE)
     userrole = postgresql.ENUM("SUPERADMIN", "STREAM_MANAGER", "OPERATOR", name="userrole")
-    userrole.create(bind, checkfirst=True)
 
     op.create_table(
         "users",

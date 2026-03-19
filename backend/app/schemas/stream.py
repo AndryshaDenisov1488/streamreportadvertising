@@ -44,6 +44,7 @@ class StreamEventListOut(BaseModel):
     start_date: date
     duration_days: int
     locked_by_user_id: uuid.UUID | None
+    locked_by_display_name: str | None = None
     has_active_broadcast: bool
     created_at: datetime
 
@@ -68,6 +69,7 @@ class StreamEventDetailOut(BaseModel):
     start_date: date
     duration_days: int
     locked_by_user_id: uuid.UUID | None
+    locked_by_display_name: str | None = None
     days: list[StreamDayOut]
     active_broadcasts: list[BroadcastSessionOut]
     created_at: datetime

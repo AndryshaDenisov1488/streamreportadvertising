@@ -1,10 +1,18 @@
-import { ArrowLeftOutlined, PlusOutlined, PlayCircleOutlined, StopOutlined } from '@ant-design/icons'
+import {
+  ArrowLeftOutlined,
+  CheckOutlined,
+  PlusOutlined,
+  PlayCircleOutlined,
+  StopOutlined,
+} from '@ant-design/icons'
 import {
   App as AntApp,
   Badge,
   Button,
   Card,
+  Checkbox,
   Col,
+  Grid,
   InputNumber,
   List,
   Modal,
@@ -14,14 +22,15 @@ import {
   Typography,
 } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import type { SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
+import type { BroadcastChecklistOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
 import { apiFetch } from '@/api/client'
 import { useAuth } from '@/auth/AuthContext'
 import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
+import { formatDateRu, formatDateTimeRu } from '@/utils/datetime'
 
 const formatElapsed = (totalSec: number) => {
   const sec = Math.max(0, Math.floor(totalSec))
@@ -31,16 +40,23 @@ const formatElapsed = (totalSec: number) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+const IDLE_REMINDER_MS = 2 * 60 * 60 * 1000
+
+const MENTION_SLOT_LABELS = ['Начало эфира', 'Середина 1', 'Середина 2', 'Конец эфира'] as const
+
 export const OperatorEventPage: React.FC = () => {
   const { id } = useParams()
   const streamId = id as string
   const { user } = useAuth()
   const { message, modal } = AntApp.useApp()
   const qc = useQueryClient()
+  const screens = Grid.useBreakpoint()
+  const isComfortable = Boolean(screens.md)
   const [day, setDay] = useState(1)
   const [tick, setTick] = useState(0)
   const [adjustTarget, setAdjustTarget] = useState<SponsorMentionOut | null>(null)
-  const [adjustSec, setAdjustSec] = useState(0)
+  const [adjustMinutes, setAdjustMinutes] = useState(0)
+  const [adjustSecondsPart, setAdjustSecondsPart] = useState(0)
 
   const detailQuery = useQuery({
     queryKey: ['stream', streamId],
@@ -48,7 +64,39 @@ export const OperatorEventPage: React.FC = () => {
     queryFn: async () => (await apiFetch(`/stream-events/${streamId}`)) as StreamEventDetailOut,
   })
 
-  useStreamWs(streamId, () => {
+  const checklistQuery = useQuery({
+    queryKey: ['checklist', streamId],
+    enabled: Boolean(streamId) && detailQuery.isSuccess,
+    queryFn: async () => (await apiFetch(`/stream-events/${streamId}/checklist`)) as BroadcastChecklistOut,
+  })
+
+  const checklistMut = useMutation({
+    mutationFn: async (patch: {
+      mic_ok?: boolean
+      scene_ok?: boolean
+      sponsor_slots_ok?: boolean
+      keys_tested_ok?: boolean
+    }) => {
+      await apiFetch(`/stream-events/${streamId}/checklist`, {
+        method: 'PUT',
+        body: JSON.stringify(patch),
+      })
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['checklist', streamId] })
+    },
+  })
+
+  const [wsViewers, setWsViewers] = useState<number | null>(null)
+
+  useStreamWs(streamId, (msg) => {
+    if (msg.type === 'presence') {
+      const p = msg.payload as { viewers?: number } | undefined
+      if (p?.viewers != null) {
+        setWsViewers(p.viewers)
+      }
+      return
+    }
     void qc.invalidateQueries({ queryKey: ['stream', streamId] })
     void qc.invalidateQueries({ queryKey: ['mentions', streamId, day] })
   })
@@ -93,6 +141,78 @@ export const OperatorEventPage: React.FC = () => {
     data?.locked_by_user_id && data.locked_by_user_id !== user?.id && user?.role !== 'SUPERADMIN',
   )
   const iHaveLock = Boolean(user && (user.role === 'SUPERADMIN' || data?.locked_by_user_id === user.id))
+
+  /** Можно нажать «Взять в работу»: свободно или занято другим (суперадмин может перехватить), но не когда уже у вас */
+  const canTakeLock = useMemo(() => {
+    if (!data || !user) {
+      return false
+    }
+    if (foreignLock) {
+      return false
+    }
+    if (data.locked_by_user_id == null) {
+      return true
+    }
+    return data.locked_by_user_id !== user.id
+  }, [data, user, foreignLock])
+
+  const selectedDayRow = useMemo(() => data?.days.find((d) => d.day_index === day), [data, day])
+
+  const [streamCredsVisible, setStreamCredsVisible] = useState(true)
+  const lastIdleDismissAtRef = useRef(0)
+  const [idleDismissVersion, setIdleDismissVersion] = useState(0)
+
+  const orderedMentionsForPlan = useMemo(() => {
+    const list = [...(mentionsQuery.data ?? [])]
+    list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    return list
+  }, [mentionsQuery.data])
+
+  const lastMentionMs = useMemo(() => {
+    const list = mentionsQuery.data ?? []
+    if (!list.length) {
+      return null
+    }
+    return Math.max(...list.map((m) => new Date(m.created_at).getTime()))
+  }, [mentionsQuery.data])
+
+  useEffect(() => {
+    lastIdleDismissAtRef.current = 0
+    setIdleDismissVersion((v) => v + 1)
+  }, [activeSession?.id, day])
+
+  const idleAnchorMs = useMemo(() => {
+    if (!activeSession) {
+      return null
+    }
+    const t0 = new Date(activeSession.started_at).getTime()
+    const dismiss = lastIdleDismissAtRef.current
+    const parts = [t0, dismiss]
+    if (lastMentionMs) {
+      parts.push(lastMentionMs)
+    }
+    return Math.max(...parts)
+  }, [activeSession, lastMentionMs, idleDismissVersion, tick])
+
+  const showIdleReminder = useMemo(() => {
+    if (!idleAnchorMs || !activeSession || foreignLock || !iHaveLock) {
+      return false
+    }
+    if (user?.role !== 'OPERATOR') {
+      return false
+    }
+    return Date.now() - idleAnchorMs >= IDLE_REMINDER_MS
+  }, [idleAnchorMs, activeSession, foreignLock, iHaveLock, tick, user?.role])
+
+  const handleIdleReminderDismiss = () => {
+    lastIdleDismissAtRef.current = Date.now()
+    setIdleDismissVersion((v) => v + 1)
+  }
+
+  const adjustTotalSec = useMemo(
+    () => Math.max(0, adjustMinutes * 60 + adjustSecondsPart),
+    [adjustMinutes, adjustSecondsPart],
+  )
 
   const lockMut = useMutation({
     mutationFn: async () => {
@@ -208,13 +328,15 @@ export const OperatorEventPage: React.FC = () => {
   return (
     <AppLayout
       nav={
-        <Space>
+        <Space direction={isComfortable ? 'horizontal' : 'vertical'} size="small" style={{ width: '100%' }}>
           <Link to="/operator">
-            <Button type="link" icon={<ArrowLeftOutlined />}>
+            <Button type="link" icon={<ArrowLeftOutlined />} style={{ paddingInline: 0 }}>
               К списку
             </Button>
           </Link>
-          <Typography.Text type="secondary">Пульт оператора</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: isComfortable ? undefined : 13 }}>
+            Пульт оператора
+          </Typography.Text>
         </Space>
       }
     >
@@ -227,31 +349,97 @@ export const OperatorEventPage: React.FC = () => {
               {data.title}
             </Typography.Title>
             <Typography.Text type="secondary">
-              Старт: {data.start_date} · {data.duration_days} дн. · Москва
+              Старт: {formatDateRu(data.start_date)} · {data.duration_days} дн. · Москва
+              {wsViewers != null ? (
+                <>
+                  {' '}
+                  · Сейчас с пультом: {wsViewers}
+                </>
+              ) : null}
             </Typography.Text>
           </div>
 
           <Card size="small" style={{ borderColor: '#1f2a3a', background: '#0d1219' }}>
-            <Space wrap>
+            <Space direction={isComfortable ? 'horizontal' : 'vertical'} size="middle" style={{ width: '100%' }}>
               <Typography.Text>Статус блокировки:</Typography.Text>
               {foreignLock ? (
-                <Badge status="error" text="Занято другим оператором" />
+                <Badge
+                  status="error"
+                  text={
+                    data.locked_by_display_name
+                      ? `Занято: ${data.locked_by_display_name}`
+                      : 'Занято другим оператором'
+                  }
+                />
               ) : data.locked_by_user_id ? (
                 <Badge status="processing" text="У вас в работе" />
               ) : (
                 <Badge status="success" text="Свободно" />
               )}
-              <Button
-                type="primary"
-                disabled={foreignLock}
-                loading={lockMut.isPending}
-                onClick={() => lockMut.mutate()}
+              <Space
+                direction={isComfortable ? 'horizontal' : 'vertical'}
+                style={{ width: isComfortable ? 'auto' : '100%' }}
+                size="middle"
               >
-                Взять в работу
-              </Button>
-              <Button danger disabled={!iHaveLock} loading={unlockMut.isPending} onClick={() => unlockMut.mutate()}>
-                Снять с работы
-              </Button>
+                <Button
+                  type={canTakeLock ? 'primary' : 'default'}
+                  disabled={!canTakeLock}
+                  loading={lockMut.isPending}
+                  onClick={() => lockMut.mutate()}
+                  block={!isComfortable}
+                  size="large"
+                >
+                  Взять в работу
+                </Button>
+                <Button
+                  danger
+                  disabled={!iHaveLock}
+                  loading={unlockMut.isPending}
+                  onClick={() => unlockMut.mutate()}
+                  block={!isComfortable}
+                  size="large"
+                >
+                  Снять с работы
+                </Button>
+              </Space>
+            </Space>
+          </Card>
+
+          <Card
+            size="small"
+            title="Чек-лист перед эфиром"
+            loading={checklistQuery.isLoading}
+            style={{ borderColor: '#1f2a3a', background: '#0d1219' }}
+          >
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+              <Checkbox
+                checked={checklistQuery.data?.mic_ok ?? false}
+                disabled={checklistMut.isPending}
+                onChange={(e) => checklistMut.mutate({ mic_ok: e.target.checked })}
+              >
+                Микрофон / звук
+              </Checkbox>
+              <Checkbox
+                checked={checklistQuery.data?.scene_ok ?? false}
+                disabled={checklistMut.isPending}
+                onChange={(e) => checklistMut.mutate({ scene_ok: e.target.checked })}
+              >
+                Сцена / картинка
+              </Checkbox>
+              <Checkbox
+                checked={checklistQuery.data?.sponsor_slots_ok ?? false}
+                disabled={checklistMut.isPending}
+                onChange={(e) => checklistMut.mutate({ sponsor_slots_ok: e.target.checked })}
+              >
+                Спонсорские слоты (4 упоминания)
+              </Checkbox>
+              <Checkbox
+                checked={checklistQuery.data?.keys_tested_ok ?? false}
+                disabled={checklistMut.isPending}
+                onChange={(e) => checklistMut.mutate({ keys_tested_ok: e.target.checked })}
+              >
+                Ключи стрима проверены
+              </Checkbox>
             </Space>
           </Card>
 
@@ -271,6 +459,80 @@ export const OperatorEventPage: React.FC = () => {
                       options={dayOptions.filter((o) => o.value <= data.duration_days)}
                       onChange={(v) => setDay(v)}
                     />
+                    {selectedDayRow ? (
+                      <>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginTop: 14,
+                            gap: 8,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <Typography.Text style={{ color: 'rgba(255,255,255,0.88)' }}>
+                            Параметры дня {day}
+                          </Typography.Text>
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => setStreamCredsVisible((v) => !v)}
+                            aria-expanded={streamCredsVisible}
+                            aria-label={streamCredsVisible ? 'Скрыть параметры трансляции' : 'Показать параметры трансляции'}
+                          >
+                            {streamCredsVisible ? 'Скрыть' : 'Показать'}
+                          </Button>
+                        </div>
+                        {streamCredsVisible ? (
+                          <div
+                            style={{
+                              marginTop: 10,
+                              padding: 12,
+                              borderRadius: 10,
+                              border: '1px solid #1f2a3a',
+                              background: '#0a1018',
+                            }}
+                          >
+                            {(
+                              [
+                                {
+                                  label: 'Ссылка на трансляцию',
+                                  value: selectedDayRow.stream_url,
+                                },
+                                {
+                                  label: 'URL сервера трансляции',
+                                  value: selectedDayRow.server_url,
+                                },
+                                {
+                                  label: 'Ключ трансляции',
+                                  value: selectedDayRow.stream_key,
+                                },
+                              ] as const
+                            ).map((row, idx, arr) => (
+                              <div
+                                key={row.label}
+                                style={{ marginBottom: idx < arr.length - 1 ? 12 : 0 }}
+                              >
+                                <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                                  {row.label}
+                                </Typography.Text>
+                                <Typography.Paragraph
+                                  style={{ marginBottom: 0, wordBreak: 'break-all' }}
+                                  copyable={
+                                    row.value
+                                      ? { text: row.value, tooltips: ['Копировать', 'Скопировано'] }
+                                      : false
+                                  }
+                                >
+                                  {row.value || '—'}
+                                </Typography.Paragraph>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
                   </div>
                   <div
                     style={{
@@ -319,6 +581,49 @@ export const OperatorEventPage: React.FC = () => {
                   >
                     Добавить упоминание
                   </Button>
+                  <div
+                    style={{
+                      padding: 12,
+                      borderRadius: 10,
+                      border: '1px solid #1f2a3a',
+                      background: '#0a1018',
+                    }}
+                  >
+                    <Typography.Text strong style={{ display: 'block', marginBottom: 10 }}>
+                      План: 4 упоминания за эфир
+                    </Typography.Text>
+                    <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 10 }}>
+                      Добавляйте по порядку: начало → две середины → конец. Ниже отмечается, какие из четырёх шагов уже
+                      есть.
+                    </Typography.Paragraph>
+                    {MENTION_SLOT_LABELS.map((label, i) => {
+                      const done = Boolean(orderedMentionsForPlan[i])
+                      return (
+                        <div
+                          key={label}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            padding: '8px 0',
+                            borderTop: i === 0 ? undefined : '1px solid #1f2a3a',
+                          }}
+                        >
+                          <Typography.Text style={{ fontSize: 13 }}>
+                            {i + 1}. {label}
+                          </Typography.Text>
+                          {done ? (
+                            <CheckOutlined style={{ color: '#52c41a', fontSize: 16 }} aria-label="Отмечено" />
+                          ) : (
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                              нет
+                            </Typography.Text>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </Space>
               </Card>
             </Col>
@@ -329,6 +634,7 @@ export const OperatorEventPage: React.FC = () => {
                 styles={{ header: { borderBottom: '1px solid #1f2a3a' } }}
               >
                 <List
+                  itemLayout={isComfortable ? 'horizontal' : 'vertical'}
                   loading={mentionsQuery.isLoading}
                   dataSource={mentionsQuery.data ?? []}
                   locale={{ emptyText: 'Пока нет упоминаний' }}
@@ -337,11 +643,15 @@ export const OperatorEventPage: React.FC = () => {
                       actions={[
                         <Button
                           key="adj"
-                          type="link"
+                          type={isComfortable ? 'link' : 'default'}
                           disabled={foreignLock || !iHaveLock}
+                          block={!isComfortable}
+                          size={isComfortable ? 'middle' : 'large'}
                           onClick={() => {
                             setAdjustTarget(item)
-                            setAdjustSec(item.adjusted_offset_sec)
+                            const t = Math.max(0, item.adjusted_offset_sec)
+                            setAdjustMinutes(Math.floor(t / 60))
+                            setAdjustSecondsPart(t % 60)
                           }}
                         >
                           Корректировка
@@ -362,6 +672,9 @@ export const OperatorEventPage: React.FC = () => {
                             </Typography.Text>
                             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                               Исходный таймкод: {item.original_timecode}
+                            </Typography.Text>
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                              Запись: {formatDateTimeRu(item.created_at)}
                             </Typography.Text>
                           </Space>
                         }
@@ -386,14 +699,122 @@ export const OperatorEventPage: React.FC = () => {
           if (!adjustTarget) {
             return
           }
-          await adjustMut.mutateAsync({ id: adjustTarget.id, sec: adjustSec })
+          await adjustMut.mutateAsync({ id: adjustTarget.id, sec: adjustTotalSec })
         }}
       >
-        <Typography.Paragraph type="secondary">
-          Укажите скорректированное смещение в секундах от старта эфира.
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          Смещение от старта эфира: введите минуты и секунды (секунды — от 0 до 59).
         </Typography.Paragraph>
-        <InputNumber min={0} style={{ width: '100%' }} value={adjustSec} onChange={(v) => setAdjustSec(Number(v ?? 0))} />
+        <div
+          style={{
+            border: '1px solid #1f2a3a',
+            borderRadius: 10,
+            overflow: 'hidden',
+            background: '#0a1018',
+          }}
+        >
+          <Row
+            wrap={false}
+            style={{
+              borderBottom: '1px solid #1f2a3a',
+              background: '#0f1622',
+              color: 'rgba(255,255,255,0.75)',
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <Col flex="1" style={{ padding: '10px 12px' }}>
+              Минуты
+            </Col>
+            <Col
+              flex="1"
+              style={{
+                padding: '10px 12px',
+                borderLeft: '1px solid #1f2a3a',
+              }}
+            >
+              Секунды
+            </Col>
+          </Row>
+          <Row wrap={false}>
+            <Col flex="1" style={{ padding: 12 }}>
+              <InputNumber
+                min={0}
+                max={99999}
+                step={1}
+                controls
+                size="large"
+                style={{ width: '100%' }}
+                value={adjustMinutes}
+                onChange={(v) => setAdjustMinutes(Math.max(0, Math.floor(Number(v ?? 0))))}
+                aria-label="Минуты от старта эфира"
+              />
+            </Col>
+            <Col
+              flex="1"
+              style={{
+                padding: 12,
+                borderLeft: '1px solid #1f2a3a',
+              }}
+            >
+              <InputNumber
+                min={0}
+                max={59}
+                step={1}
+                controls
+                size="large"
+                style={{ width: '100%' }}
+                value={adjustSecondsPart}
+                onChange={(v) => setAdjustSecondsPart(Math.min(59, Math.max(0, Math.floor(Number(v ?? 0)))))}
+                aria-label="Секунды от старта эфира, 0–59"
+              />
+            </Col>
+          </Row>
+        </div>
+        <Typography.Paragraph type="secondary" style={{ marginTop: 14, marginBottom: 0 }}>
+          Итого от старта эфира:{' '}
+          <Typography.Text strong style={{ color: 'rgba(255,255,255,0.92)' }}>
+            {formatElapsed(adjustTotalSec)}
+          </Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+            ({adjustTotalSec} с)
+          </Typography.Text>
+        </Typography.Paragraph>
       </Modal>
+
+      {showIdleReminder ? (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="idle-reminder-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+            paddingTop: 'max(24px, env(safe-area-inset-top))',
+            paddingBottom: 'max(24px, env(safe-area-inset-bottom))',
+            background: 'rgba(7, 11, 16, 0.97)',
+            backdropFilter: 'blur(6px)',
+          }}
+        >
+          <div style={{ maxWidth: 440, textAlign: 'center' }}>
+            <Typography.Title level={3} id="idle-reminder-title" style={{ color: 'rgba(255,255,255,0.95)' }}>
+              Не забудьте про напоминалки
+            </Typography.Title>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 24, fontSize: 15 }}>
+              Прошло больше двух часов с последнего упоминания (или с того момента, как вы закрыли это сообщение).
+              Проверьте план из четырёх отметок и спонсорские вставки.
+            </Typography.Paragraph>
+            <Button type="primary" size="large" block onClick={handleIdleReminderDismiss}>
+              Понятно, скрыть
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </AppLayout>
   )
 }

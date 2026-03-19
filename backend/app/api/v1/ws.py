@@ -1,8 +1,7 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_token_safe
 from app.db.session import AsyncSessionLocal
@@ -41,9 +40,14 @@ async def stream_events_ws(
             await websocket.close(code=4401)
             return
     hub: StreamEventHub = websocket.app.state.ws_hub
-    await hub.connect(stream_event_id, websocket)
+    ok = await hub.connect(stream_event_id, websocket)
+    if not ok:
+        return
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        pass
+    finally:
         hub.disconnect(stream_event_id, websocket)
+        await hub.notify_presence(stream_event_id)
