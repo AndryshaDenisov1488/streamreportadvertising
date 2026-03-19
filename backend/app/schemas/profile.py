@@ -11,6 +11,7 @@ class ProfileUpdate(BaseModel):
     last_name: str | None = Field(default=None, min_length=1, max_length=100)
     phone: str | None = Field(default=None, max_length=40)
     telegram: str | None = Field(default=None, max_length=80)
+    onboarding_completed: bool | None = None
 
 
 class ChangePasswordIn(BaseModel):

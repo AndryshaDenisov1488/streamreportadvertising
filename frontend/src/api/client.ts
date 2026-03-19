@@ -103,6 +103,7 @@ export const patchProfileRequest = async (body: {
   last_name?: string
   phone?: string
   telegram?: string
+  onboarding_completed?: boolean
 }) => {
   return (await apiFetch('/profile', {
     method: 'PATCH',

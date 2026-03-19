@@ -17,6 +17,7 @@ class UserOut(BaseModel):
     role: UserRole
     is_active: bool
     suggest_password_change: bool = False
+    onboarding_completed: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

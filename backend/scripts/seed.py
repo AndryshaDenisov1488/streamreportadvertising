@@ -51,6 +51,7 @@ async def main() -> None:
                 role=UserRole.SUPERADMIN,
                 is_active=True,
                 suggest_password_change=False,
+                onboarding_completed=True,
             ),
             User(
                 id=uuid.uuid4(),
@@ -61,6 +62,7 @@ async def main() -> None:
                 role=UserRole.STREAM_MANAGER,
                 is_active=True,
                 suggest_password_change=False,
+                onboarding_completed=True,
             ),
             User(
                 id=uuid.uuid4(),
@@ -71,6 +73,7 @@ async def main() -> None:
                 role=UserRole.OPERATOR,
                 is_active=True,
                 suggest_password_change=False,
+                onboarding_completed=True,
             ),
         ]
         for u in users:

@@ -55,6 +55,7 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
         role=data.role,
         is_active=data.is_active,
         suggest_password_change=suggest_change,
+        onboarding_completed=False,
     )
     session.add(user)
     await session.flush()

@@ -64,6 +64,7 @@ async def accept_invite(session: AsyncSession, body: AcceptInviteIn) -> User:
         role=inv.role,
         is_active=True,
         suggest_password_change=False,
+        onboarding_completed=False,
     )
     session.add(user)
     inv.used_at = datetime.now(timezone.utc)

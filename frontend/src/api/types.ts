@@ -14,6 +14,8 @@ export type UserOut = {
   is_active: boolean
   /** Рекомендация сменить пароль после входа с временным паролем */
   suggest_password_change?: boolean
+  /** false — показать интерактивное знакомство при первом входе */
+  onboarding_completed?: boolean
   created_at: string
 }
 

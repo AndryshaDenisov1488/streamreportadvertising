@@ -24,6 +24,8 @@ async def update_profile(session: AsyncSession, *, user_id: uuid.UUID, data: Pro
         user.phone = data.phone or None
     if data.telegram is not None:
         user.telegram = data.telegram or None
+    if data.onboarding_completed is not None:
+        user.onboarding_completed = data.onboarding_completed
     await session.commit()
     await session.refresh(user)
     return user
