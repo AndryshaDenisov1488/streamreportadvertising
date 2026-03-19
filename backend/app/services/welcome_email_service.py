@@ -39,14 +39,14 @@ def _send_welcome_sync(
         with smtplib.SMTP_SSL(host, port, timeout=60) as smtp:
             if user and password:
                 smtp.login(user, password)
-            smtp.sendmail(from_addr, [to_addr], msg.as_string())
+            smtp.send_message(msg, from_addr=from_addr, to_addrs=[to_addr])
     else:
         with smtplib.SMTP(host, port, timeout=60) as smtp:
             if use_tls:
                 smtp.starttls()
             if user and password:
                 smtp.login(user, password)
-            smtp.sendmail(from_addr, [to_addr], msg.as_string())
+            smtp.send_message(msg, from_addr=from_addr, to_addrs=[to_addr])
 
 
 async def send_welcome_email(
