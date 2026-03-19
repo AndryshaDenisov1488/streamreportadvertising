@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "noreply@localhost"
     smtp_use_tls: bool = True
+    # True — порт 465 (implicit SSL). False — обычный SMTP + STARTTLS (например 587)
+    smtp_use_ssl: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:

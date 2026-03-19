@@ -24,6 +24,7 @@ def _send_welcome_sync(
     user: str,
     password: str,
     use_tls: bool,
+    use_ssl: bool,
     from_addr: str,
     to_addr: str,
     subject: str,
@@ -34,12 +35,18 @@ def _send_welcome_sync(
     msg["From"] = from_addr
     msg["To"] = to_addr
     msg.attach(MIMEText(body_html, "html", "utf-8"))
-    with smtplib.SMTP(host, port, timeout=60) as smtp:
-        if use_tls:
-            smtp.starttls()
-        if user and password:
-            smtp.login(user, password)
-        smtp.sendmail(from_addr, [to_addr], msg.as_string())
+    if use_ssl:
+        with smtplib.SMTP_SSL(host, port, timeout=60) as smtp:
+            if user and password:
+                smtp.login(user, password)
+            smtp.sendmail(from_addr, [to_addr], msg.as_string())
+    else:
+        with smtplib.SMTP(host, port, timeout=60) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if user and password:
+                smtp.login(user, password)
+            smtp.sendmail(from_addr, [to_addr], msg.as_string())
 
 
 async def send_welcome_email(
@@ -95,6 +102,7 @@ async def send_welcome_email(
         user=settings.smtp_user,
         password=settings.smtp_password,
         use_tls=settings.smtp_use_tls,
+        use_ssl=settings.smtp_use_ssl,
         from_addr=settings.smtp_from,
         to_addr=to_email,
         subject=subject,

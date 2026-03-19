@@ -25,6 +25,7 @@ def _send_smtp_sync(
     user: str,
     password: str,
     use_tls: bool,
+    use_ssl: bool,
     from_addr: str,
     to_addrs: list[str],
     subject: str,
@@ -40,12 +41,18 @@ def _send_smtp_sync(
     part = MIMEApplication(attachment_bytes, _subtype="vnd.openxmlformats-officedocument.wordprocessingml.document")
     part.add_header("Content-Disposition", "attachment", filename=attachment_name)
     msg.attach(part)
-    with smtplib.SMTP(host, port, timeout=60) as smtp:
-        if use_tls:
-            smtp.starttls()
-        if user and password:
-            smtp.login(user, password)
-        smtp.sendmail(from_addr, to_addrs, msg.as_string())
+    if use_ssl:
+        with smtplib.SMTP_SSL(host, port, timeout=60) as smtp:
+            if user and password:
+                smtp.login(user, password)
+            smtp.sendmail(from_addr, to_addrs, msg.as_string())
+    else:
+        with smtplib.SMTP(host, port, timeout=60) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if user and password:
+                smtp.login(user, password)
+            smtp.sendmail(from_addr, to_addrs, msg.as_string())
 
 
 async def _recipient_emails(session: AsyncSession) -> list[str]:
@@ -111,6 +118,7 @@ async def send_period_report_email(
         user=settings.smtp_user,
         password=settings.smtp_password,
         use_tls=settings.smtp_use_tls,
+        use_ssl=settings.smtp_use_ssl,
         from_addr=settings.smtp_from,
         to_addrs=to_addrs,
         subject=subj,
