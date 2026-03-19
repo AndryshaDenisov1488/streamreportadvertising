@@ -12,6 +12,8 @@ class ProfileUpdate(BaseModel):
     phone: str | None = Field(default=None, max_length=40)
     telegram: str | None = Field(default=None, max_length=80)
     onboarding_completed: bool | None = None
+    # только false: отклонить экран смены пароля при первом входе (без смены пароля)
+    suggest_password_change: bool | None = None
 
 
 class ChangePasswordIn(BaseModel):

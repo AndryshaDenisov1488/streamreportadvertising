@@ -105,20 +105,15 @@ export const SuperadminPage: React.FC = () => {
       email: string
       last_name: string
       first_name: string
-      password?: string
       role: string
       is_active: boolean
     }) => {
-      const body: Record<string, unknown> = {
+      const body = {
         email: values.email,
         last_name: values.last_name,
         first_name: values.first_name,
         role: values.role,
         is_active: values.is_active,
-      }
-      const pw = values.password?.trim()
-      if (pw) {
-        body.password = pw
       }
       return (await apiFetch('/users', {
         method: 'POST',
@@ -399,7 +394,6 @@ export const SuperadminPage: React.FC = () => {
             email: v.email,
             last_name: v.last_name,
             first_name: v.first_name,
-            password: v.password as string | undefined,
             role: v.role,
             is_active: v.is_active ?? true,
           })
@@ -415,25 +409,9 @@ export const SuperadminPage: React.FC = () => {
           <Form.Item name="first_name" label="Имя" rules={[{ required: true, whitespace: true }]}>
             <Input autoComplete="given-name" />
           </Form.Item>
-          <Form.Item
-            name="password"
-            label="Пароль"
-            extra="Оставьте пустым — сгенерируется автоматически и будет отправлен на email (если настроена почта на сервере)"
-            rules={[
-              {
-                validator: async (_, v: string) => {
-                  if (!v || !String(v).trim()) {
-                    return
-                  }
-                  if (String(v).trim().length < 8) {
-                    throw new Error('Минимум 8 символов')
-                  }
-                },
-              },
-            ]}
-          >
-            <Input.Password autoComplete="new-password" />
-          </Form.Item>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            Пароль генерируется автоматически и отправляется на email (если на сервере настроен SMTP).
+          </Typography.Paragraph>
           <Form.Item name="role" label="Роль" rules={[{ required: true }]}>
             <Select
               options={[

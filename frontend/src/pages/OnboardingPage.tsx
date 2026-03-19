@@ -1,4 +1,4 @@
-import { RocketOutlined, SafetyOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
+import { RocketOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
@@ -15,11 +15,7 @@ import {
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import {
-  changePasswordRequest,
-  patchProfileRequest,
-  uploadAvatarRequest,
-} from '@/api/client'
+import { patchProfileRequest, uploadAvatarRequest } from '@/api/client'
 import type { UserRole } from '@/api/types'
 import { useAuth } from '@/auth/AuthContext'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -57,7 +53,6 @@ export const OnboardingPage: React.FC = () => {
   const nav = useNavigate()
   const [step, setStep] = useState(0)
   const [nameForm] = Form.useForm()
-  const [pwdForm] = Form.useForm()
   const [finishing, setFinishing] = useState(false)
 
   useEffect(() => {
@@ -104,7 +99,6 @@ export const OnboardingPage: React.FC = () => {
   const steps = [
     { title: 'Старт', icon: <RocketOutlined /> },
     { title: 'Имя', icon: <UserOutlined /> },
-    { title: 'Пароль', icon: <SafetyOutlined /> },
     { title: 'Аватар', icon: <UserOutlined /> },
     { title: 'Роли', icon: <TeamOutlined /> },
   ]
@@ -188,64 +182,6 @@ export const OnboardingPage: React.FC = () => {
           {step === 2 && (
             <div>
               <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
-                Пароль
-              </Typography.Title>
-              <Typography.Paragraph type="secondary">
-                Если вам выдали временный пароль по почте — смените его здесь. Можно пропустить шаг и сменить позже в
-                «Профиль».
-              </Typography.Paragraph>
-              <Form
-                form={pwdForm}
-                layout="vertical"
-                onFinish={async (v) => {
-                  try {
-                    await changePasswordRequest(v.current_password, v.new_password)
-                    await refreshMe()
-                    message.success('Пароль обновлён')
-                    setStep(3)
-                  } catch (e) {
-                    message.error(e instanceof Error ? e.message : 'Ошибка')
-                  }
-                }}
-              >
-                <Form.Item name="current_password" label="Текущий пароль" rules={[{ required: true }]}>
-                  <Input.Password autoComplete="current-password" />
-                </Form.Item>
-                <Form.Item name="new_password" label="Новый пароль" rules={[{ required: true, min: 8 }]}>
-                  <Input.Password autoComplete="new-password" />
-                </Form.Item>
-                <Form.Item
-                  name="new_password2"
-                  label="Повтор нового пароля"
-                  dependencies={['new_password']}
-                  rules={[
-                    { required: true },
-                    ({ getFieldValue }) => ({
-                      validator(_, value) {
-                        if (!value || getFieldValue('new_password') === value) {
-                          return Promise.resolve()
-                        }
-                        return Promise.reject(new Error('Пароли не совпадают'))
-                      },
-                    }),
-                  ]}
-                >
-                  <Input.Password autoComplete="new-password" />
-                </Form.Item>
-                <Space wrap>
-                  <Button onClick={() => setStep(1)}>Назад</Button>
-                  <Button onClick={() => setStep(3)}>Пропустить</Button>
-                  <Button type="primary" htmlType="submit">
-                    Сохранить и далее
-                  </Button>
-                </Space>
-              </Form>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div>
-              <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
                 Аватар
               </Typography.Title>
               <Typography.Paragraph type="secondary">
@@ -271,8 +207,8 @@ export const OnboardingPage: React.FC = () => {
               </Upload>
               <div style={{ marginTop: 20 }}>
                 <Space wrap>
-                  <Button onClick={() => setStep(2)}>Назад</Button>
-                  <Button type="primary" onClick={() => setStep(4)}>
+                  <Button onClick={() => setStep(1)}>Назад</Button>
+                  <Button type="primary" onClick={() => setStep(3)}>
                     Далее
                   </Button>
                 </Space>
@@ -280,7 +216,7 @@ export const OnboardingPage: React.FC = () => {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <div>
               <Typography.Title level={4} style={{ marginTop: 0, color: 'rgba(255,255,255,0.92)' }}>
                 Роли в системе
@@ -339,7 +275,7 @@ export const OnboardingPage: React.FC = () => {
                 ]}
               />
               <Space wrap style={{ marginTop: 24 }}>
-                <Button onClick={() => setStep(3)}>Назад</Button>
+                <Button onClick={() => setStep(2)}>Назад</Button>
                 <Button type="primary" size="large" loading={finishing} onClick={() => void handleFinish()}>
                   Перейти в панель
                 </Button>

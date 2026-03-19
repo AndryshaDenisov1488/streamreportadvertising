@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator
+from pydantic import BaseModel, EmailStr, Field, computed_field
 
 from app.models.enums import UserRole
 
@@ -33,30 +33,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
-    password: str | None = Field(
-        default=None,
-        max_length=128,
-        description="Не указывайте — пароль сгенерируется и будет отправлен на email (при настроенном SMTP)",
-    )
     role: UserRole
     is_active: bool = True
-
-    @field_validator("password", mode="before")
-    @classmethod
-    def empty_password_none(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        s = str(v).strip()
-        return s if s else None
-
-    @field_validator("password")
-    @classmethod
-    def password_min_len(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        if len(v) < 8:
-            raise ValueError("Пароль не короче 8 символов")
-        return v
 
 
 class UserCreatedOut(BaseModel):

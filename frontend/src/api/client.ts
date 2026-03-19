@@ -104,6 +104,8 @@ export const patchProfileRequest = async (body: {
   phone?: string
   telegram?: string
   onboarding_completed?: boolean
+  /** только false — отклонить подсказку смены пароля */
+  suggest_password_change?: boolean
 }) => {
   return (await apiFetch('/profile', {
     method: 'PATCH',

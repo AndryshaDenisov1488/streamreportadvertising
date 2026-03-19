@@ -10,6 +10,7 @@ import { ManagerStreamsPage } from '@/pages/ManagerStreamsPage'
 import { OperatorEventPage } from '@/pages/OperatorEventPage'
 import { OperatorHomePage } from '@/pages/OperatorHomePage'
 import { RoleHome } from '@/pages/RoleHome'
+import { FirstLoginPasswordPage } from '@/pages/FirstLoginPasswordPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { SuperadminPage } from '@/pages/SuperadminPage'
 
@@ -17,6 +18,14 @@ export const App: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/first-login"
+        element={
+          <ProtectedRoute>
+            <FirstLoginPasswordPage />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/onboarding"
         element={

@@ -20,6 +20,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 def main() -> None:
     from app.core.config import get_settings
+    from app.services.email_html_layout import wrap_email_html
     from app.services.welcome_email_service import _send_welcome_sync
 
     settings = get_settings()
@@ -42,6 +43,12 @@ def main() -> None:
     print(f"  APP_PUBLIC_BASE_URL={settings.app_public_base_url!r}")
     print(f"--- Отправка теста на {to_addr!r} ---")
 
+    base = (settings.app_public_base_url or "").strip().rstrip("/")
+    body_html = wrap_email_html(
+        headline="Тест SMTP",
+        inner_html='<p style="margin:0">Если вы видите это письмо, SMTP настроен верно.</p>',
+        public_base_url=base,
+    )
     try:
         _send_welcome_sync(
             host=settings.smtp_host.strip(),
@@ -53,7 +60,7 @@ def main() -> None:
             from_addr=settings.smtp_from,
             to_addr=to_addr.strip(),
             subject="MainStream Ops — тест SMTP",
-            body_html="<p>Если вы видите это письмо, SMTP настроен верно.</p>",
+            body_html=body_html,
         )
     except Exception as e:
         print(f"ОШИБКА: {type(e).__name__}: {e}")

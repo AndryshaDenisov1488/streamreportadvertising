@@ -26,6 +26,13 @@ async def update_profile(session: AsyncSession, *, user_id: uuid.UUID, data: Pro
         user.telegram = data.telegram or None
     if data.onboarding_completed is not None:
         user.onboarding_completed = data.onboarding_completed
+    if data.suggest_password_change is not None:
+        if data.suggest_password_change:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Включить подсказку смены пароля через профиль нельзя",
+            )
+        user.suggest_password_change = False
     await session.commit()
     await session.refresh(user)
     return user

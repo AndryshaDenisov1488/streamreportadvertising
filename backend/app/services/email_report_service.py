@@ -1,6 +1,7 @@
 """Отчёты менеджерам/админам по почте: период + вложение Word с упоминаниями."""
 
 import asyncio
+import html
 import smtplib
 from datetime import date, datetime, timedelta
 from email.mime.application import MIMEApplication
@@ -14,6 +15,7 @@ from app.core.timezone import MOSCOW_TZ, format_moscow_date
 from app.models.enums import UserRole
 from app.models.stream import StreamDayAssignment, StreamEvent
 from app.models.user import User
+from app.services.email_html_layout import wrap_email_html
 from app.services.report_service import export_mentions_docx
 from app.services.stream_service import _assignment_summary_from_pairs, _load_assignment_pairs
 
@@ -74,19 +76,37 @@ async def _html_digest(session: AsyncSession, *, date_from: date, date_to: date)
     for ev in events:
         summary = _assignment_summary_from_pairs(pairs_by.get(ev.id, [])) or "не назначено"
         rows.append(
-            f"<tr><td>{ev.title}</td><td>{ev.duration_days}</td><td>{format_moscow_date(ev.start_date)}</td>"
-            f"<td>{summary}</td></tr>"
+            "<tr>"
+            f'<td style="border-bottom:1px solid #2a3f5c;padding:6px 8px">{html.escape(ev.title)}</td>'
+            f'<td style="border-bottom:1px solid #2a3f5c;padding:6px 8px">{ev.duration_days}</td>'
+            f'<td style="border-bottom:1px solid #2a3f5c;padding:6px 8px">'
+            f"{html.escape(format_moscow_date(ev.start_date))}</td>"
+            f'<td style="border-bottom:1px solid #2a3f5c;padding:6px 8px">{html.escape(summary)}</td>'
+            "</tr>"
         )
-    body = (
-        "<h2>Сводка по эфирам</h2>"
-        f"<p>Период (МСК): {format_moscow_date(date_from)} — {format_moscow_date(date_to)}</p>"
-        "<table border='1' cellpadding='6' cellspacing='0'>"
-        "<tr><th>Событие</th><th>Дней</th><th>Старт</th><th>Операторы по дням</th></tr>"
+    inner = (
+        f"<p style=\"margin:0 0 14px\">Период (МСК): {format_moscow_date(date_from)} — "
+        f"{format_moscow_date(date_to)}</p>"
+        "<table border='0' cellpadding='8' cellspacing='0' style=\"width:100%;border-collapse:collapse;"
+        "border:1px solid #2a3f5c;background:#0d1219\">"
+        "<tr style=\"background:#152030\">"
+        "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8\">Событие</th>"
+        "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8;width:56px\">Дней</th>"
+        "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8\">Старт</th>"
+        "<th align=\"left\" style=\"border-bottom:1px solid #2a3f5c;color:#e8eef8\">Операторы по дням</th>"
+        "</tr>"
         + "".join(rows)
         + "</table>"
-        "<p>Во вложении — выгрузка упоминаний (таймкоды) за период в Word.</p>"
+        "<p style=\"margin:16px 0 0\">Во вложении — выгрузка упоминаний (таймкоды) за период в Word.</p>"
     )
-    return body
+    settings = get_settings()
+    base = (settings.app_public_base_url or "").strip().rstrip("/")
+    return wrap_email_html(
+        headline="Сводка по эфирам",
+        inner_html=inner,
+        public_base_url=base,
+        footer_line="MainStream Ops · автоматическая рассылка",
+    )
 
 
 async def send_period_report_email(

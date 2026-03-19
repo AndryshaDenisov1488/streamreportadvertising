@@ -12,7 +12,7 @@ export const SuggestPasswordModal: React.FC = () => {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    if (!user?.suggest_password_change) {
+    if (!user?.suggest_password_change || !user?.onboarding_completed) {
       setOpen(false)
       return
     }
@@ -21,7 +21,7 @@ export const SuggestPasswordModal: React.FC = () => {
       return
     }
     setOpen(true)
-  }, [user?.id, user?.suggest_password_change])
+  }, [user?.id, user?.suggest_password_change, user?.onboarding_completed])
 
   const handleLater = () => {
     if (user) {

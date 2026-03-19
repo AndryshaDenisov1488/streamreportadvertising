@@ -22,8 +22,7 @@ class WelcomeEmailPayload(NamedTuple):
     to_email: str
     first_name: str
     role: UserRole
-    plain_password: str | None
-    password_was_auto_generated: bool
+    plain_password: str
 
 
 class CreateUserOutcome(NamedTuple):
@@ -50,14 +49,7 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
     if exists.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email уже занят")
 
-    if data.password:
-        plain_password = data.password
-        auto_generated = False
-        suggest_change = False
-    else:
-        plain_password = secrets.token_urlsafe(14)
-        auto_generated = True
-        suggest_change = True
+    plain_password = secrets.token_urlsafe(14)
 
     user = User(
         email=data.email,
@@ -66,7 +58,7 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
         password_hash=hash_password(plain_password),
         role=data.role,
         is_active=data.is_active,
-        suggest_password_change=suggest_change,
+        suggest_password_change=True,
         onboarding_completed=False,
     )
     session.add(user)
@@ -83,7 +75,7 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
             "first_name": user.first_name,
             "last_name": user.last_name,
             "role": user.role.value,
-            "password_auto_generated": auto_generated,
+            "password_auto_generated": True,
         },
     )
     await session.commit()
@@ -101,8 +93,7 @@ async def create_user(session: AsyncSession, *, actor_id: UUID, data: UserCreate
         to_email=user.email,
         first_name=user.first_name,
         role=user.role,
-        plain_password=plain_password if auto_generated else None,
-        password_was_auto_generated=auto_generated,
+        plain_password=plain_password,
     )
     return CreateUserOutcome(user, payload, None)
 
@@ -115,7 +106,6 @@ async def send_welcome_email_task(payload: WelcomeEmailPayload) -> None:
             first_name=payload.first_name,
             role=payload.role,
             plain_password=payload.plain_password,
-            password_was_auto_generated=payload.password_was_auto_generated,
         )
         log.info("Welcome email sent to %s", payload.to_email)
     except Exception:

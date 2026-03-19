@@ -26,8 +26,17 @@ export const ProtectedRoute: React.FC<Props> = ({ children, roles }) => {
     return <Navigate to="/login" replace />
   }
 
-  if (user.onboarding_completed === false && location.pathname !== '/onboarding') {
-    return <Navigate to="/onboarding" replace />
+  if (location.pathname === '/first-login' && !user.suggest_password_change) {
+    return <Navigate to={user.onboarding_completed ? '/dashboard' : '/onboarding'} replace />
+  }
+
+  if (!user.onboarding_completed) {
+    if (user.suggest_password_change && location.pathname !== '/first-login') {
+      return <Navigate to="/first-login" replace />
+    }
+    if (!user.suggest_password_change && location.pathname !== '/onboarding') {
+      return <Navigate to="/onboarding" replace />
+    }
   }
 
   if (roles && !roles.includes(user.role)) {
