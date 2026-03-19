@@ -116,4 +116,5 @@ pytest -q
 
 ## Продакшен
 
-Пошаговый выклад на VPS (PostgreSQL, сборка фронта, **systemd** + **nginx** + **Let’s Encrypt**): [docs/DEPLOY_PRODUCTION.md](docs/DEPLOY_PRODUCTION.md).
+Пошаговый выклад на VPS (PostgreSQL, сборка фронта, **systemd** + **nginx** + **Let’s Encrypt**): [docs/DEPLOY_PRODUCTION.md](docs/DEPLOY_PRODUCTION.md).  
+Команды «с нуля» одним файлом: [docs/SERVER_COPYPASTE.md](docs/SERVER_COPYPASTE.md).
