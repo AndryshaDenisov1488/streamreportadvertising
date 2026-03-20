@@ -18,6 +18,15 @@ async def upload_logo_route(
     return await logo_service.upload_logo(session, actor=actor, file=file)
 
 
+@router.post("/upload-batch", response_model=list[LogoLibraryItemOut])
+async def upload_logos_batch_route(
+    actor: ManagerOrAdmin,
+    session: AsyncSession = Depends(get_db),
+    files: list[UploadFile] = File(...),
+) -> list[LogoLibraryItemOut]:
+    return await logo_service.upload_logos_batch(session, actor=actor, files=files)
+
+
 @router.get("", response_model=list[LogoLibraryItemOut])
 async def list_logos_route(
     _: OperatorOrAbove,

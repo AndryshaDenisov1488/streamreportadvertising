@@ -23,17 +23,19 @@ import {
   Row,
   Select,
   Space,
+  Spin,
   Tabs,
   Typography,
   Upload,
 } from 'antd'
+import type { UploadFile } from 'antd/es/upload/interface'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import type { LogoLibraryItemOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
-import { apiFetch, fetchAuthorizedBlob, triggerBlobDownload, uploadLogoRequest } from '@/api/client'
+import { apiFetch, fetchAuthorizedBlob, triggerBlobDownload, uploadLogosBatchRequest } from '@/api/client'
 import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateTimeRu } from '@/utils/datetime'
@@ -56,6 +58,8 @@ export const ManagerStreamPage: React.FC = () => {
   const [form] = Form.useForm()
   const [mentionDay, setMentionDay] = useState(1)
   const [addLogoOpen, setAddLogoOpen] = useState(false)
+  const [logoModalUploadList, setLogoModalUploadList] = useState<UploadFile[]>([])
+  const [logoBatchBusy, setLogoBatchBusy] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['stream', streamId],
@@ -90,6 +94,13 @@ export const ManagerStreamPage: React.FC = () => {
       setMentionDay(1)
     }
   }, [data, mentionDay])
+
+  useEffect(() => {
+    if (!addLogoOpen) {
+      setLogoModalUploadList([])
+      setLogoBatchBusy(false)
+    }
+  }, [addLogoOpen])
 
   const mentionsQuery = useQuery({
     queryKey: ['mentions', streamId, mentionDay],
@@ -408,28 +419,54 @@ export const ManagerStreamPage: React.FC = () => {
               key: 'up',
               label: 'Загрузить файл',
               children: (
-                <Upload.Dragger
-                  maxCount={1}
-                  accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
-                  showUploadList={false}
-                  customRequest={async (opt) => {
-                    try {
-                      const file = opt.file as File
-                      const uploaded = await uploadLogoRequest(file)
-                      await attachLogoMut.mutateAsync(uploaded.id)
-                      await qc.invalidateQueries({ queryKey: ['logos-library'] })
-                      opt.onSuccess?.({}, file)
-                    } catch (e) {
-                      opt.onError?.(e as Error)
-                      message.error((e as Error).message)
-                    }
-                  }}
-                >
-                  <p className="ant-upload-text">Перетащите файл или нажмите для выбора</p>
-                  <p className="ant-upload-hint" style={{ color: '#64748b' }}>
-                    PNG, JPEG, GIF, WebP, SVG до 15 МБ
-                  </p>
-                </Upload.Dragger>
+                <Spin spinning={logoBatchBusy} tip="Загрузка…">
+                  <Upload.Dragger
+                    multiple
+                    maxCount={30}
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                    fileList={logoModalUploadList}
+                    disabled={logoBatchBusy}
+                    beforeUpload={async (file, fileList) => {
+                      const idx = fileList.findIndex((f) => f.uid === file.uid)
+                      if (idx !== fileList.length - 1) {
+                        return false
+                      }
+                      const raw = (fileList as UploadFile[])
+                        .map((f) => f.originFileObj)
+                        .filter((x) => x != null) as File[]
+                      if (!raw.length) {
+                        return false
+                      }
+                      setLogoBatchBusy(true)
+                      try {
+                        const items = await uploadLogosBatchRequest(raw)
+                        for (const item of items) {
+                          await apiFetch(`/stream-events/${streamId}/logos`, {
+                            method: 'POST',
+                            body: JSON.stringify({ logo_id: item.id }),
+                          })
+                        }
+                        message.success(`Добавлено файлов: ${items.length}`)
+                        await qc.invalidateQueries({ queryKey: ['stream', streamId] })
+                        await qc.invalidateQueries({ queryKey: ['logos-library'] })
+                        setLogoModalUploadList([])
+                        setAddLogoOpen(false)
+                      } catch (e) {
+                        message.error((e as Error).message)
+                      } finally {
+                        setLogoBatchBusy(false)
+                      }
+                      return false
+                    }}
+                    onChange={({ fileList }) => setLogoModalUploadList(fileList)}
+                  >
+                    <p className="ant-upload-text">Перетащите файлы или нажмите для выбора</p>
+                    <p className="ant-upload-hint" style={{ color: '#64748b' }}>
+                      Можно выбрать несколько файлов сразу. PNG, JPEG, GIF, WebP, SVG до 15 МБ каждый, не более 30 за
+                      раз.
+                    </p>
+                  </Upload.Dragger>
+                </Spin>
               ),
             },
           ]}

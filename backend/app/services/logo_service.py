@@ -50,7 +50,7 @@ def logo_library_item(logo: Logo) -> LogoLibraryItemOut:
     )
 
 
-async def upload_logo(session: AsyncSession, *, actor: User, file: UploadFile) -> LogoLibraryItemOut:
+async def _persist_one_logo(session: AsyncSession, *, actor: User, file: UploadFile) -> Logo:
     ct = file.content_type or ""
     if ct not in ALLOWED_LOGO_TYPES:
         raise HTTPException(
@@ -88,9 +88,32 @@ async def upload_logo(session: AsyncSession, *, actor: User, file: UploadFile) -
         payload_before=None,
         payload_after={"filename_original": filename_original, "stored_path": rel},
     )
+    return logo
+
+
+async def upload_logo(session: AsyncSession, *, actor: User, file: UploadFile) -> LogoLibraryItemOut:
+    logo = await _persist_one_logo(session, actor=actor, file=file)
     await session.commit()
     await session.refresh(logo)
     return logo_library_item(logo)
+
+
+async def upload_logos_batch(
+    session: AsyncSession, *, actor: User, files: list[UploadFile]
+) -> list[LogoLibraryItemOut]:
+    if not files:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет файлов")
+    if len(files) > 50:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Не более 50 файлов за раз")
+    logos: list[Logo] = []
+    for f in files:
+        logos.append(await _persist_one_logo(session, actor=actor, file=f))
+    await session.commit()
+    out: list[LogoLibraryItemOut] = []
+    for lg in logos:
+        await session.refresh(lg)
+        out.append(logo_library_item(lg))
+    return out
 
 
 async def list_library(session: AsyncSession) -> list[LogoLibraryItemOut]:

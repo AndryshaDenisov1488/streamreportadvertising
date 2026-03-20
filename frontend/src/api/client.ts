@@ -115,6 +115,41 @@ export const uploadLogoRequest = async (file: File) => {
   return (await res.json()) as import('@/api/types').LogoLibraryItemOut
 }
 
+/** Несколько файлов за один запрос (медиатека логотипов) */
+export const uploadLogosBatchRequest = async (files: File[]) => {
+  if (!files.length) {
+    throw new Error('Не выбраны файлы')
+  }
+  const form = new FormData()
+  for (const f of files) {
+    form.append('files', f)
+  }
+  const token = getAccessToken()
+  const headers: Record<string, string> = { 'X-Request-ID': getOrCreateRequestId() }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  const res = await fetch(`${API_BASE}/logos/upload-batch`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+    headers,
+  })
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const errJson = (await res.json()) as { detail?: unknown }
+      if (errJson?.detail) {
+        detail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail)
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  return (await res.json()) as import('@/api/types').LogoLibraryItemOut[]
+}
+
 export const apiFetch = async (path: string, options: FetchOptions = {}) => {
   const { skipAuth, headers, body, ...rest } = options
   const token = skipAuth ? null : getAccessToken()
