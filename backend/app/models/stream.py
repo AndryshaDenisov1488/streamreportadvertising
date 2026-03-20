@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from datetime import date, datetime
 
@@ -21,6 +23,7 @@ class StreamEvent(Base):
     created_by_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    content_url: Mapped[str | None] = mapped_column(Text(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -34,6 +37,12 @@ class StreamEvent(Base):
     )
     day_assignments: Mapped[list["StreamDayAssignment"]] = relationship(
         "StreamDayAssignment", back_populates="stream_event", cascade="all, delete-orphan"
+    )
+    event_logos: Mapped[list["StreamEventLogo"]] = relationship(
+        "StreamEventLogo",
+        back_populates="stream_event",
+        cascade="all, delete-orphan",
+        order_by="StreamEventLogo.sort_order",
     )
 
 

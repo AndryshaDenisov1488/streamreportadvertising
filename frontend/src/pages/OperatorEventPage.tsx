@@ -1,6 +1,10 @@
 import {
   ArrowLeftOutlined,
   CheckOutlined,
+  CopyOutlined,
+  DownloadOutlined,
+  FileZipOutlined,
+  LinkOutlined,
   PlusOutlined,
   PlayCircleOutlined,
   StopOutlined,
@@ -14,10 +18,10 @@ import {
   Col,
   Divider,
   Grid,
+  Row,
   InputNumber,
   List,
   Modal,
-  Row,
   Select,
   Space,
   Typography,
@@ -27,7 +31,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import type { BroadcastChecklistOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
-import { apiFetch } from '@/api/client'
+import { apiFetch, fetchAuthorizedBlob, triggerBlobDownload } from '@/api/client'
 import { useAuth } from '@/auth/AuthContext'
 import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -285,6 +289,22 @@ export const OperatorEventPage: React.FC = () => {
     onError: (e: Error) => message.error(e.message),
   })
 
+  const downloadZipMut = useMutation({
+    mutationFn: async () => {
+      const { blob, filename } = await fetchAuthorizedBlob(`/stream-events/${streamId}/logos/archive.zip`)
+      triggerBlobDownload(blob, filename)
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
+  const downloadOneLogoMut = useMutation({
+    mutationFn: async (logoId: string) => {
+      const { blob, filename } = await fetchAuthorizedBlob(`/stream-events/${streamId}/logos/${logoId}/file`)
+      triggerBlobDownload(blob, filename)
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
   const stopMut = useMutation({
     mutationFn: async () => {
       await apiFetch(`/stream-events/${streamId}/days/${day}/broadcast/stop`, { method: 'POST' })
@@ -454,6 +474,98 @@ export const OperatorEventPage: React.FC = () => {
                   .join('; ')}
               </Typography.Paragraph>
             ) : null}
+          </Card>
+
+          <Card size="small" style={{ borderColor: '#e2e8f0', background: '#ffffff' }} title="Материалы и логотипы">
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <div>
+                <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+                  Ссылка на материалы (контент)
+                </Typography.Text>
+                {data.content_url ? (
+                  <Space wrap align="start">
+                    <Typography.Link
+                      href={data.content_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ wordBreak: 'break-all' }}
+                    >
+                      {data.content_url}
+                    </Typography.Link>
+                    <Button
+                      size="small"
+                      icon={<CopyOutlined />}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(data.content_url as string)
+                        message.success('Скопировано')
+                      }}
+                    >
+                      Копировать
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<LinkOutlined />}
+                      onClick={() =>
+                        window.open(data.content_url as string, '_blank', 'noopener,noreferrer')
+                      }
+                    >
+                      Открыть
+                    </Button>
+                  </Space>
+                ) : (
+                  <Typography.Text type="secondary">Не указана</Typography.Text>
+                )}
+              </div>
+              <Divider style={{ margin: '8px 0' }} />
+              <div>
+                <Space wrap style={{ marginBottom: 8 }}>
+                  <Typography.Text strong>Логотипы</Typography.Text>
+                  <Button
+                    size="small"
+                    icon={<FileZipOutlined />}
+                    disabled={!(data.logos ?? []).length}
+                    loading={downloadZipMut.isPending}
+                    onClick={() => downloadZipMut.mutate()}
+                  >
+                    Скачать все (ZIP)
+                  </Button>
+                </Space>
+                {!(data.logos ?? []).length ? (
+                  <Typography.Text type="secondary">Нет прикреплённых логотипов</Typography.Text>
+                ) : (
+                  <Row gutter={[12, 12]}>
+                    {(data.logos ?? []).map((lg) => (
+                      <Col xs={12} sm={8} md={6} key={lg.id}>
+                        <Card
+                          size="small"
+                          cover={
+                            <img
+                              alt={lg.filename_original}
+                              src={lg.public_url}
+                              style={{ maxHeight: 100, objectFit: 'contain', padding: 8 }}
+                            />
+                          }
+                        >
+                          <Typography.Text ellipsis style={{ fontSize: 12 }} title={lg.filename_original}>
+                            {lg.filename_original}
+                          </Typography.Text>
+                          <Button
+                            size="small"
+                            block
+                            style={{ marginTop: 8 }}
+                            icon={<DownloadOutlined />}
+                            loading={downloadOneLogoMut.isPending}
+                            onClick={() => downloadOneLogoMut.mutate(lg.id)}
+                          >
+                            Скачать
+                          </Button>
+                        </Card>
+                      </Col>
+                    ))}
+                  </Row>
+                )}
+              </div>
+            </Space>
           </Card>
 
           <Modal

@@ -16,6 +16,10 @@ export const auditActionLabel = (code: string): string => {
     BROADCAST_STOP: 'Остановка эфира',
     MENTION_CREATE: 'Добавлено упоминание',
     MENTION_UPDATE: 'Изменено упоминание',
+    LOGO_UPLOAD: 'Загрузка логотипа в медиатеку',
+    LOGO_ATTACH: 'Логотип прикреплён к мероприятию',
+    LOGO_DETACH: 'Логотип откреплён от мероприятия',
+    LOGO_DOWNLOAD_ARCHIVE: 'Скачивание архива логотипов',
   }
   return m[code] ?? code
 }
@@ -26,6 +30,7 @@ export const auditEntityLabel = (code: string): string => {
     stream_event: 'Мероприятие',
     broadcast_session: 'Сессия эфира',
     sponsor_mention: 'Упоминание спонсора',
+    logo: 'Логотип',
   }
   return m[code] ?? code
 }

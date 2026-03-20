@@ -39,6 +39,82 @@ const buildHeaders = (init?: HeadersInit, token?: string | null): HeadersInit =>
   return h
 }
 
+/** Скачивание бинарного ответа с авторизацией (ZIP, файлы) */
+export const fetchAuthorizedBlob = async (path: string): Promise<{ blob: Blob; filename: string }> => {
+  const token = getAccessToken()
+  const headers: Record<string, string> = { 'X-Request-ID': getOrCreateRequestId() }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers })
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const errJson = (await res.json()) as { detail?: unknown }
+      if (errJson?.detail) {
+        detail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail)
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  const blob = await res.blob()
+  let filename = 'download'
+  const cd = res.headers.get('Content-Disposition')
+  if (cd) {
+    const star = /filename\*=UTF-8''([^;\n]+)/i.exec(cd)
+    const plain = /filename="([^"]+)"/i.exec(cd)
+    if (star?.[1]) {
+      filename = decodeURIComponent(star[1].trim())
+    } else if (plain?.[1]) {
+      filename = plain[1].trim()
+    }
+  }
+  return { blob, filename }
+}
+
+export const triggerBlobDownload = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export const uploadLogoRequest = async (file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  const token = getAccessToken()
+  const headers: Record<string, string> = { 'X-Request-ID': getOrCreateRequestId() }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  const res = await fetch(`${API_BASE}/logos/upload`, {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+    headers,
+  })
+  if (!res.ok) {
+    let detail = res.statusText
+    try {
+      const errJson = (await res.json()) as { detail?: unknown }
+      if (errJson?.detail) {
+        detail = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail)
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail)
+  }
+  return (await res.json()) as import('@/api/types').LogoLibraryItemOut
+}
+
 export const apiFetch = async (path: string, options: FetchOptions = {}) => {
   const { skipAuth, headers, body, ...rest } = options
   const token = skipAuth ? null : getAccessToken()

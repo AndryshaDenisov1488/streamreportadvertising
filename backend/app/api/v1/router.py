@@ -5,6 +5,7 @@ from app.api.v1 import (
     auth,
     dashboard,
     event_templates,
+    logos,
     mentions,
     notifications,
     product_analytics,
@@ -12,6 +13,7 @@ from app.api.v1 import (
     reports,
     stats,
     stream_events,
+    stream_logos,
     users,
     ws,
 )
@@ -23,6 +25,8 @@ api_router.include_router(dashboard.router)
 api_router.include_router(event_templates.router)
 api_router.include_router(users.router)
 api_router.include_router(stream_events.router)
+api_router.include_router(stream_logos.router)
+api_router.include_router(logos.router)
 api_router.include_router(mentions.router)
 api_router.include_router(reports.router)
 api_router.include_router(stats.router)

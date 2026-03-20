@@ -1,5 +1,6 @@
 from app.models.audit import AuditLog
 from app.models.enums import AuditActionType, UserRole
+from app.models.logo import Logo, StreamEventLogo
 from app.models.platform_extra import BroadcastChecklist, Notification, ProductAnalyticsEvent, UserInvite
 from app.models.stream import (
     BroadcastSession,
@@ -19,6 +20,8 @@ __all__ = [
     "User",
     "RefreshToken",
     "StreamEvent",
+    "Logo",
+    "StreamEventLogo",
     "StreamEventTemplate",
     "StreamDayAssignment",
     "StreamDay",

@@ -101,6 +101,22 @@ export type BroadcastChecklistOut = {
   updated_at: string
 }
 
+export type StreamLogoItemOut = {
+  id: string
+  filename_original: string
+  public_url: string
+  sort_order: number
+  created_at: string
+}
+
+export type LogoLibraryItemOut = {
+  id: string
+  filename_original: string
+  public_url: string
+  created_at: string
+  uploaded_by_id: string | null
+}
+
 export type StreamEventDetailOut = {
   id: string
   title: string
@@ -111,6 +127,9 @@ export type StreamEventDetailOut = {
   day_assignments: DayAssignmentOut[]
   days: StreamDayOut[]
   active_broadcasts: BroadcastSessionOut[]
+  /** С бэкенда v2+; при старых ответах может отсутствовать */
+  content_url?: string | null
+  logos?: StreamLogoItemOut[]
   created_at: string
   updated_at: string
 }

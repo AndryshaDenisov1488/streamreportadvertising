@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.timezone import add_seconds_to_start, format_moscow_datetime, utc_now
 from app.models.enums import AuditActionType, UserRole
+from app.models.logo import StreamEventLogo
 from app.models.stream import (
     BroadcastSession,
     MentionAdjustment,
@@ -19,6 +20,7 @@ from app.models.stream import (
     StreamEventTemplate,
 )
 from app.models.user import User
+from app.schemas.logo import StreamLogoItemOut
 from app.schemas.stream import (
     BroadcastSessionOut,
     DayAssignmentOut,
@@ -65,13 +67,38 @@ def _mention_to_out(mention: SponsorMention) -> SponsorMentionOut:
 async def _get_event(session: AsyncSession, stream_id: UUID) -> StreamEvent:
     result = await session.execute(
         select(StreamEvent)
-        .options(selectinload(StreamEvent.days), selectinload(StreamEvent.broadcast_sessions))
+        .options(
+            selectinload(StreamEvent.days),
+            selectinload(StreamEvent.broadcast_sessions),
+            selectinload(StreamEvent.event_logos).selectinload(StreamEventLogo.logo),
+        )
         .where(StreamEvent.id == stream_id)
     )
     ev = result.scalar_one_or_none()
     if not ev:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Мероприятие не найдено")
     return ev
+
+
+def _logos_for_stream(ev: StreamEvent) -> list[StreamLogoItemOut]:
+    if not ev.event_logos:
+        return []
+    items: list[StreamLogoItemOut] = []
+    for link in sorted(ev.event_logos, key=lambda x: x.sort_order):
+        lg = link.logo
+        if not lg:
+            continue
+        pub = f"/uploads/{lg.stored_path.lstrip('/')}"
+        items.append(
+            StreamLogoItemOut(
+                id=lg.id,
+                filename_original=lg.filename_original,
+                public_url=pub,
+                sort_order=link.sort_order,
+                created_at=lg.created_at,
+            )
+        )
+    return items
 
 
 async def assert_valid_stream_day(session: AsyncSession, stream_id: UUID, day_index: int) -> None:
@@ -259,6 +286,8 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         day_assignments=day_assignments,
         days=[StreamDayOut.model_validate(d) for d in ev.days],
         active_broadcasts=active_broadcasts,
+        content_url=ev.content_url,
+        logos=_logos_for_stream(ev),
         created_at=ev.created_at,
         updated_at=ev.updated_at,
     )
@@ -360,7 +389,12 @@ async def create_stream_event(session: AsyncSession, *, actor: User, data: Strea
 
 async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: UUID, data: StreamEventUpdate) -> StreamEventDetailOut:
     ev = await _get_event(session, stream_id)
-    before = {"title": ev.title, "start_date": str(ev.start_date), "duration_days": ev.duration_days}
+    before = {
+        "title": ev.title,
+        "start_date": str(ev.start_date),
+        "duration_days": ev.duration_days,
+        "content_url": ev.content_url,
+    }
     if data.title is not None:
         ev.title = data.title
     if data.start_date is not None:
@@ -368,6 +402,8 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
     new_duration = data.duration_days if data.duration_days is not None else ev.duration_days
     if data.duration_days is not None:
         ev.duration_days = data.duration_days
+    if "content_url" in data.model_fields_set:
+        ev.content_url = str(data.content_url) if data.content_url is not None else None
     await _sync_days(session, ev.id, new_duration, data.days)
     await write_audit(
         session,
@@ -376,7 +412,12 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
         entity_type="stream_event",
         entity_id=str(ev.id),
         payload_before=before,
-        payload_after={"title": ev.title, "start_date": str(ev.start_date), "duration_days": ev.duration_days},
+        payload_after={
+            "title": ev.title,
+            "start_date": str(ev.start_date),
+            "duration_days": ev.duration_days,
+            "content_url": ev.content_url,
+        },
     )
     await session.commit()
     return await get_stream_event_detail(session, stream_id)

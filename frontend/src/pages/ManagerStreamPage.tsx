@@ -1,4 +1,13 @@
-import { ArrowLeftOutlined, SaveOutlined } from '@ant-design/icons'
+import {
+  ArrowLeftOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  FileZipOutlined,
+  LinkOutlined,
+  PlusOutlined,
+  SaveOutlined,
+} from '@ant-design/icons'
 import {
   App as AntApp,
   Badge,
@@ -10,18 +19,21 @@ import {
   Grid,
   Input,
   List,
+  Modal,
   Row,
   Select,
   Space,
+  Tabs,
   Typography,
+  Upload,
 } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import type { SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
-import { apiFetch } from '@/api/client'
+import type { LogoLibraryItemOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
+import { apiFetch, fetchAuthorizedBlob, triggerBlobDownload, uploadLogoRequest } from '@/api/client'
 import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateTimeRu } from '@/utils/datetime'
@@ -43,6 +55,7 @@ export const ManagerStreamPage: React.FC = () => {
   const qc = useQueryClient()
   const [form] = Form.useForm()
   const [mentionDay, setMentionDay] = useState(1)
+  const [addLogoOpen, setAddLogoOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['stream', streamId],
@@ -64,6 +77,7 @@ export const ManagerStreamPage: React.FC = () => {
       title: data.title,
       start_date: dayjs(data.start_date),
       duration_days: data.duration_days,
+      content_url: data.content_url ?? '',
       ...daysVals,
     })
   }, [data, form])
@@ -89,6 +103,55 @@ export const ManagerStreamPage: React.FC = () => {
     void qc.invalidateQueries({ queryKey: ['stream', streamId] })
   })
 
+  const logosLibraryQuery = useQuery({
+    queryKey: ['logos-library'],
+    enabled: addLogoOpen,
+    queryFn: async () => (await apiFetch('/logos')) as LogoLibraryItemOut[],
+  })
+
+  const attachLogoMut = useMutation({
+    mutationFn: async (logoId: string) => {
+      await apiFetch(`/stream-events/${streamId}/logos`, {
+        method: 'POST',
+        body: JSON.stringify({ logo_id: logoId }),
+      })
+    },
+    onSuccess: async () => {
+      message.success('Логотип добавлен к мероприятию')
+      setAddLogoOpen(false)
+      await qc.invalidateQueries({ queryKey: ['stream', streamId] })
+      await qc.invalidateQueries({ queryKey: ['logos-library'] })
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
+  const detachLogoMut = useMutation({
+    mutationFn: async (logoId: string) => {
+      await apiFetch(`/stream-events/${streamId}/logos/${logoId}`, { method: 'DELETE' })
+    },
+    onSuccess: async () => {
+      message.success('Логотип откреплён')
+      await qc.invalidateQueries({ queryKey: ['stream', streamId] })
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
+  const downloadZipMut = useMutation({
+    mutationFn: async () => {
+      const { blob, filename } = await fetchAuthorizedBlob(`/stream-events/${streamId}/logos/archive.zip`)
+      triggerBlobDownload(blob, filename)
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
+  const downloadOneMut = useMutation({
+    mutationFn: async (logoId: string) => {
+      const { blob, filename } = await fetchAuthorizedBlob(`/stream-events/${streamId}/logos/${logoId}/file`)
+      triggerBlobDownload(blob, filename)
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
   const saveMut = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
       const duration = Number(values.duration_days)
@@ -101,6 +164,9 @@ export const ManagerStreamPage: React.FC = () => {
           stream_key: String(values[`day_${idx}_stream_key`] ?? ''),
         }
       })
+      const rawUrl = values.content_url
+      const content_url =
+        rawUrl == null || String(rawUrl).trim() === '' ? null : String(rawUrl).trim()
       await apiFetch(`/stream-events/${streamId}`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -108,6 +174,7 @@ export const ManagerStreamPage: React.FC = () => {
           start_date: (values.start_date as dayjs.Dayjs).format('YYYY-MM-DD'),
           duration_days: duration,
           days,
+          content_url,
         }),
       })
     },
@@ -118,6 +185,25 @@ export const ManagerStreamPage: React.FC = () => {
     },
     onError: (e: Error) => message.error(e.message),
   })
+
+  const handleCopyContentUrl = async () => {
+    const v = form.getFieldValue('content_url') as string | undefined
+    if (!v || !String(v).trim()) {
+      message.warning('Ссылка пустая')
+      return
+    }
+    await navigator.clipboard.writeText(String(v).trim())
+    message.success('Скопировано')
+  }
+
+  const handleOpenContentUrl = () => {
+    const v = form.getFieldValue('content_url') as string | undefined
+    if (!v || !String(v).trim()) {
+      message.warning('Ссылка пустая')
+      return
+    }
+    window.open(String(v).trim(), '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <AppLayout
@@ -207,6 +293,149 @@ export const ManagerStreamPage: React.FC = () => {
         )}
       </Card>
 
+      <Card
+        title="Логотипы"
+        style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
+        styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
+        extra={
+          <Space wrap>
+            <Button
+              icon={<FileZipOutlined />}
+              onClick={() => downloadZipMut.mutate()}
+              loading={downloadZipMut.isPending}
+              disabled={!(data?.logos ?? []).length}
+            >
+              Скачать ZIP
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddLogoOpen(true)}>
+              Добавить логотип
+            </Button>
+          </Space>
+        }
+      >
+        {!data ? (
+          <Typography.Text type="secondary">Загрузка…</Typography.Text>
+        ) : (data.logos ?? []).length === 0 ? (
+          <Typography.Text type="secondary">Нет логотипов — нажмите «Добавить логотип»</Typography.Text>
+        ) : (
+          <Row gutter={[12, 12]}>
+            {(data.logos ?? []).map((lg) => (
+              <Col xs={12} sm={8} md={6} key={lg.id}>
+                <Card
+                  size="small"
+                  cover={
+                    <img
+                      alt={lg.filename_original}
+                      src={lg.public_url}
+                      style={{ maxHeight: 120, objectFit: 'contain', padding: 8 }}
+                    />
+                  }
+                >
+                  <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                    <Typography.Text ellipsis style={{ fontSize: 12 }} title={lg.filename_original}>
+                      {lg.filename_original}
+                    </Typography.Text>
+                    <Space wrap>
+                      <Button
+                        size="small"
+                        icon={<DownloadOutlined />}
+                        loading={downloadOneMut.isPending}
+                        onClick={() => downloadOneMut.mutate(lg.id)}
+                        aria-label={`Скачать ${lg.filename_original}`}
+                      />
+                      <Button
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        loading={detachLogoMut.isPending}
+                        onClick={() => detachLogoMut.mutate(lg.id)}
+                        aria-label="Открепить логотип"
+                      />
+                    </Space>
+                  </Space>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        )}
+      </Card>
+
+      <Modal
+        title="Добавить логотип"
+        open={addLogoOpen}
+        onCancel={() => setAddLogoOpen(false)}
+        footer={null}
+        destroyOnClose
+        width={720}
+      >
+        <Tabs
+          items={[
+            {
+              key: 'lib',
+              label: 'Из медиатеки',
+              children: (
+                <div style={{ minHeight: 200 }}>
+                  {logosLibraryQuery.isLoading ? (
+                    <Typography.Text type="secondary">Загрузка списка…</Typography.Text>
+                  ) : (
+                    <Row gutter={[12, 12]}>
+                      {(logosLibraryQuery.data ?? []).map((item) => (
+                        <Col xs={12} sm={8} key={item.id}>
+                          <Card
+                            size="small"
+                            hoverable
+                            onClick={() => attachLogoMut.mutate(item.id)}
+                            cover={
+                              <img
+                                alt={item.filename_original}
+                                src={item.public_url}
+                                style={{ maxHeight: 100, objectFit: 'contain', padding: 8 }}
+                              />
+                            }
+                          >
+                            <Typography.Text ellipsis style={{ fontSize: 12 }} title={item.filename_original}>
+                              {item.filename_original}
+                            </Typography.Text>
+                          </Card>
+                        </Col>
+                      ))}
+                    </Row>
+                  )}
+                </div>
+              ),
+            },
+            {
+              key: 'up',
+              label: 'Загрузить файл',
+              children: (
+                <Upload.Dragger
+                  maxCount={1}
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                  showUploadList={false}
+                  customRequest={async (opt) => {
+                    try {
+                      const file = opt.file as File
+                      const uploaded = await uploadLogoRequest(file)
+                      await attachLogoMut.mutateAsync(uploaded.id)
+                      await qc.invalidateQueries({ queryKey: ['logos-library'] })
+                      opt.onSuccess?.({}, file)
+                    } catch (e) {
+                      opt.onError?.(e as Error)
+                      message.error((e as Error).message)
+                    }
+                  }}
+                >
+                  <p className="ant-upload-text">Перетащите файл или нажмите для выбора</p>
+                  <p className="ant-upload-hint" style={{ color: '#64748b' }}>
+                    PNG, JPEG, GIF, WebP, SVG до 15 МБ
+                  </p>
+                </Upload.Dragger>
+              ),
+            },
+          ]}
+        />
+      </Modal>
+
       <Card loading={isLoading} style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
         <Form
           layout="vertical"
@@ -239,6 +468,55 @@ export const ManagerStreamPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            name="content_url"
+            label="Ссылка на материалы (контент, например Яндекс.Диск)"
+            rules={[
+              {
+                validator: async (_, v) => {
+                  if (v == null || String(v).trim() === '') {
+                    return Promise.resolve()
+                  }
+                  try {
+                    // eslint-disable-next-line no-new
+                    new URL(String(v))
+                    return Promise.resolve()
+                  } catch {
+                    return Promise.reject(new Error('Введите корректный URL'))
+                  }
+                },
+              },
+            ]}
+          >
+            <Input
+              placeholder="https://..."
+              addonAfter={
+                <Space size={0}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CopyOutlined />}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      void handleCopyContentUrl()
+                    }}
+                    aria-label="Копировать ссылку"
+                  />
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<LinkOutlined />}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      handleOpenContentUrl()
+                    }}
+                    aria-label="Открыть в новой вкладке"
+                  />
+                </Space>
+              }
+            />
+          </Form.Item>
 
           <Typography.Title level={5}>Дни (URL и ключи)</Typography.Title>
           <Form.Item shouldUpdate noStyle>

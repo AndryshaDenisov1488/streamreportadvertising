@@ -1,7 +1,9 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field, field_validator
+
+from app.schemas.logo import StreamLogoItemOut
 
 class StreamDayIn(BaseModel):
     day_index: int = Field(ge=1, le=5)
@@ -51,6 +53,14 @@ class StreamEventUpdate(BaseModel):
     start_date: date | None = None
     duration_days: int | None = Field(default=None, ge=1, le=5)
     days: list[StreamDayIn] | None = None
+    content_url: AnyHttpUrl | None = None
+
+    @field_validator("content_url", mode="before")
+    @classmethod
+    def empty_content_url_to_none(cls, v: object) -> object:
+        if v == "":
+            return None
+        return v
 
 
 class StreamEventListOut(BaseModel):
@@ -94,6 +104,9 @@ class StreamEventDetailOut(BaseModel):
     """Назначения операторов по дням."""
     days: list[StreamDayOut]
     active_broadcasts: list[BroadcastSessionOut]
+    content_url: str | None = None
+    """Ссылка на материалы (например Яндекс.Диск)."""
+    logos: list[StreamLogoItemOut] = []
     created_at: datetime
     updated_at: datetime
 
