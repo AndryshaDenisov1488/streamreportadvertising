@@ -77,6 +77,13 @@ class StreamEventUpdate(BaseModel):
         return v
 
 
+class StreamDayLinkOut(BaseModel):
+    """День мероприятия и ссылка на трансляцию (для списка без захода в карточку)."""
+
+    day_index: int
+    stream_url: str
+
+
 class StreamEventListOut(BaseModel):
     id: uuid.UUID
     title: str
@@ -91,6 +98,8 @@ class StreamEventListOut(BaseModel):
     """Для текущего пользователя: есть ли свободные дни или уже свои назначения."""
     has_active_broadcast: bool
     created_at: datetime
+    day_stream_links: list[StreamDayLinkOut] = []
+    """По дням: ссылки на трансляцию (копирование из списка)."""
 
     model_config = {"from_attributes": True}
 

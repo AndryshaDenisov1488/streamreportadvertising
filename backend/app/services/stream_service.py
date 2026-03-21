@@ -29,6 +29,7 @@ from app.schemas.stream import (
     StreamDayIn,
     StreamDayOut,
     StreamEventCreate,
+    StreamDayLinkOut,
     StreamEventDetailOut,
     StreamEventListOut,
     StreamEventUpdate,
@@ -219,6 +220,15 @@ async def list_stream_events(
     result = await session.execute(select(StreamEvent).order_by(StreamEvent.start_date.desc(), StreamEvent.created_at.desc()))
     events = list(result.scalars().all())
     eids = [e.id for e in events]
+    days_by_event: dict[UUID, list[StreamDay]] = defaultdict(list)
+    if eids:
+        dr = await session.execute(
+            select(StreamDay)
+            .where(StreamDay.stream_event_id.in_(eids))
+            .order_by(StreamDay.stream_event_id, StreamDay.day_index)
+        )
+        for row in dr.scalars().all():
+            days_by_event[row.stream_event_id].append(row)
     pairs_by = await _load_assignment_pairs(session, eids)
     lock_ids = {e.locked_by_user_id for e in events if e.locked_by_user_id}
     users_map = await _users_by_ids(session, lock_ids)
@@ -241,6 +251,10 @@ async def list_stream_events(
                 has_slot = True
             else:
                 has_slot = False
+        day_links = [
+            StreamDayLinkOut(day_index=d.day_index, stream_url=d.stream_url or "")
+            for d in days_by_event.get(ev.id, [])
+        ]
         items.append(
             StreamEventListOut(
                 id=ev.id,
@@ -253,6 +267,7 @@ async def list_stream_events(
                 has_slot_for_me=has_slot,
                 has_active_broadcast=ev.id in active_ids,
                 created_at=ev.created_at,
+                day_stream_links=day_links,
             )
         )
     return items

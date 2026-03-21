@@ -57,6 +57,11 @@ export type DayAssignmentOut = {
   operator_email: string
 }
 
+export type StreamDayLinkOut = {
+  day_index: number
+  stream_url: string
+}
+
 export type StreamEventListOut = {
   id: string
   title: string
@@ -69,6 +74,8 @@ export type StreamEventListOut = {
   has_slot_for_me: boolean
   has_active_broadcast: boolean
   created_at: string
+  /** Ссылки на трансляцию по дням (список мероприятий) */
+  day_stream_links?: StreamDayLinkOut[]
 }
 
 export type StreamDayOut = {

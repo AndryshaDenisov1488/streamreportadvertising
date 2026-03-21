@@ -1,4 +1,4 @@
-import { DeleteOutlined, DownloadOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
+import { CopyOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
@@ -11,6 +11,7 @@ import {
   Select,
   Space,
   Table,
+  Tooltip,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
@@ -224,6 +225,49 @@ export const ManagerStreamsPage: React.FC = () => {
       ),
     },
     {
+      title: 'Трансляция',
+      key: 'stream_links',
+      width: 260,
+      render: (_, r) => (
+        <Space direction="vertical" size={6} style={{ maxWidth: 280 }}>
+          {(r.day_stream_links ?? []).length === 0 ? (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              —
+            </Typography.Text>
+          ) : (
+            (r.day_stream_links ?? []).map((d) => (
+              <Space key={d.day_index} size={8} wrap align="center">
+                <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                  День {d.day_index}
+                </Typography.Text>
+                {d.stream_url ? (
+                  <Tooltip title={d.stream_url}>
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<CopyOutlined />}
+                      style={{ padding: 0 }}
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(d.stream_url)
+                        message.success(`День ${d.day_index}: ссылка скопирована`)
+                      }}
+                      aria-label={`Скопировать ссылку трансляции, день ${d.day_index}`}
+                    >
+                      Копировать
+                    </Button>
+                  </Tooltip>
+                ) : (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    нет ссылки
+                  </Typography.Text>
+                )}
+              </Space>
+            ))
+          )}
+        </Space>
+      ),
+    },
+    {
       title: '',
       key: 'actions',
       width: 280,
@@ -357,7 +401,8 @@ export const ManagerStreamsPage: React.FC = () => {
             Мероприятия
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            Создание, шаблоны, отчёты — Word, CSV и Excel.
+            Создание, шаблоны, отчёты — Word, CSV и Excel. Колонка «Трансляция» — копирование ссылки на трансляцию по
+            дням без захода в карточку.
           </Typography.Paragraph>
         </div>
         <Space wrap style={{ width: isNarrow ? '100%' : undefined }}>
@@ -377,7 +422,7 @@ export const ManagerStreamsPage: React.FC = () => {
           dataSource={data ?? []}
           columns={columns}
           pagination={{ pageSize: 10 }}
-          scroll={{ x: 720 }}
+          scroll={{ x: 1000 }}
           size={isNarrow ? 'small' : 'middle'}
         />
       </Card>
