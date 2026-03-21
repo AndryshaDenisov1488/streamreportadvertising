@@ -24,10 +24,11 @@ import {
   Modal,
   Select,
   Space,
+  Tooltip,
   Typography,
 } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import type { BroadcastChecklistOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
@@ -54,6 +55,21 @@ export const OperatorEventPage: React.FC = () => {
   const streamId = id as string
   const { user } = useAuth()
   const { message, modal } = AntApp.useApp()
+  const handleCopyLinkField = useCallback(
+    async (text: string) => {
+      const t = text.trim()
+      if (!t) {
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(t)
+        message.success('Скопировано в буфер обмена')
+      } catch {
+        message.error('Не удалось скопировать')
+      }
+    },
+    [message],
+  )
   const qc = useQueryClient()
   const screens = Grid.useBreakpoint()
   const isComfortable = Boolean(screens.md)
@@ -484,21 +500,32 @@ export const OperatorEventPage: React.FC = () => {
                 </Typography.Text>
                 {data.content_url ? (
                   <Space wrap align="start">
-                    <Typography.Link
-                      href={data.content_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ wordBreak: 'break-all' }}
-                    >
-                      {data.content_url}
-                    </Typography.Link>
+                    <Tooltip title="Нажмите, чтобы скопировать в буфер обмена">
+                      <Typography.Text
+                        role="button"
+                        tabIndex={0}
+                        style={{
+                          wordBreak: 'break-all',
+                          cursor: 'pointer',
+                          color: '#1677ff',
+                          textDecoration: 'underline',
+                        }}
+                        onClick={() => void handleCopyLinkField(data.content_url as string)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            void handleCopyLinkField(data.content_url as string)
+                          }
+                        }}
+                        aria-label="Скопировать ссылку на материалы"
+                      >
+                        {data.content_url}
+                      </Typography.Text>
+                    </Tooltip>
                     <Button
                       size="small"
                       icon={<CopyOutlined />}
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(data.content_url as string)
-                        message.success('Скопировано')
-                      }}
+                      onClick={() => void handleCopyLinkField(data.content_url as string)}
                     >
                       Копировать
                     </Button>
@@ -664,16 +691,36 @@ export const OperatorEventPage: React.FC = () => {
                                 <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                                   {row.label}
                                 </Typography.Text>
-                                <Typography.Paragraph
-                                  style={{ marginBottom: 0, wordBreak: 'break-all' }}
-                                  copyable={
-                                    row.value
-                                      ? { text: row.value, tooltips: ['Копировать', 'Скопировано'] }
-                                      : false
-                                  }
+                                <Tooltip
+                                  title={row.value ? 'Нажмите, чтобы скопировать в буфер обмена' : undefined}
                                 >
-                                  {row.value || '—'}
-                                </Typography.Paragraph>
+                                  <Typography.Paragraph
+                                    role={row.value ? 'button' : undefined}
+                                    tabIndex={row.value ? 0 : undefined}
+                                    style={{
+                                      marginBottom: 0,
+                                      wordBreak: 'break-all',
+                                      cursor: row.value ? 'pointer' : 'default',
+                                      color: row.value ? '#1677ff' : undefined,
+                                      textDecoration: row.value ? 'underline' : undefined,
+                                    }}
+                                    onClick={() => row.value && void handleCopyLinkField(row.value)}
+                                    onKeyDown={(e) => {
+                                      if (!row.value) {
+                                        return
+                                      }
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        void handleCopyLinkField(row.value)
+                                      }
+                                    }}
+                                    aria-label={
+                                      row.value ? `Скопировать: ${row.label}` : undefined
+                                    }
+                                  >
+                                    {row.value || '—'}
+                                  </Typography.Paragraph>
+                                </Tooltip>
                               </div>
                             ))}
                           </div>
