@@ -9,6 +9,7 @@ from app.core.deps import ManagerOrAdmin, OperatorOrAbove
 from app.db.session import get_db
 from app.schemas.platform import ChecklistOut, ChecklistUpdate
 from app.schemas.stream import (
+    BroadcastActualStartBody,
     BroadcastSessionOut,
     SponsorMentionOut,
     StreamEventCreate,
@@ -140,6 +141,36 @@ async def start_broadcast_route(
             "day_index": day_index,
             "session_id": str(out.id),
             "started_at": out.started_at.isoformat(),
+        },
+    )
+    return out
+
+
+@router.post(
+    "/{stream_id}/days/{day_index}/broadcast/actual-start",
+    response_model=BroadcastSessionOut,
+)
+async def realign_broadcast_actual_start_route(
+    stream_id: UUID,
+    day_index: int,
+    body: BroadcastActualStartBody,
+    request: Request,
+    actor: OperatorOrAbove,
+    session: AsyncSession = Depends(get_db),
+) -> BroadcastSessionOut:
+    out = await stream_service.realign_broadcast_actual_start(
+        session,
+        actor=actor,
+        stream_id=stream_id,
+        day_index=day_index,
+        actual_started_at=body.actual_started_at,
+    )
+    hub: StreamEventHub = request.app.state.ws_hub
+    await hub.publish(
+        stream_id,
+        {
+            "type": "broadcast_realigned",
+            "payload": {"day_index": day_index, "started_at": out.started_at.isoformat()},
         },
     )
     return out

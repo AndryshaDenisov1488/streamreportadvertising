@@ -7,7 +7,7 @@ from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.timezone import add_seconds_to_start, format_moscow_datetime, utc_now
+from app.core.timezone import MOSCOW_TZ, add_seconds_to_start, format_moscow_datetime, utc_now
 from app.models.enums import AuditActionType, UserRole
 from app.models.logo import StreamEventLogo
 from app.models.stream import (
@@ -584,6 +584,22 @@ def _can_control_broadcast(actor: User, ev: StreamEvent, session_operator_id: UU
     return session_operator_id == actor.id
 
 
+def _can_realign_broadcast_start(actor: User, ev: StreamEvent, session_operator_id: UUID) -> bool:
+    if actor.role == UserRole.SUPERADMIN:
+        return True
+    if actor.role == UserRole.STREAM_MANAGER:
+        return True
+    if actor.role == UserRole.OPERATOR:
+        return session_operator_id == actor.id
+    return False
+
+
+def _datetime_to_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=MOSCOW_TZ)
+    return dt.astimezone(timezone.utc)
+
+
 async def start_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID, day_index: int) -> BroadcastSessionOut:
     if day_index < 1 or day_index > 5:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный день")
@@ -679,6 +695,116 @@ async def stop_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID,
         payload_after={"ended_at": bs.ended_at.isoformat()},
     )
     await session.commit()
+
+
+async def realign_broadcast_actual_start(
+    session: AsyncSession,
+    *,
+    actor: User,
+    stream_id: UUID,
+    day_index: int,
+    actual_started_at: datetime,
+) -> BroadcastSessionOut:
+    """Сдвигает started_at на фактическое время и добавляет дельту ко всем таймкодам упоминаний."""
+    if day_index < 1 or day_index > 5:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректный день")
+    ev = await _get_event(session, stream_id)
+    if day_index > ev.duration_days:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="День вне длительности мероприятия")
+
+    result = await session.execute(
+        select(BroadcastSession)
+        .options(selectinload(BroadcastSession.mentions).selectinload(SponsorMention.adjustments))
+        .where(
+            and_(
+                BroadcastSession.stream_event_id == stream_id,
+                BroadcastSession.day_index == day_index,
+                BroadcastSession.ended_at.is_(None),
+            )
+        )
+    )
+    bs = result.scalar_one_or_none()
+    if not bs:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Активный эфир не найден")
+
+    if not _can_realign_broadcast_start(actor, ev, bs.operator_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+
+    new_started_utc = _datetime_to_utc(actual_started_at)
+    old_started = bs.started_at
+    if old_started.tzinfo is None:
+        old_started = old_started.replace(tzinfo=timezone.utc)
+    else:
+        old_started = old_started.astimezone(timezone.utc)
+
+    delta_sec = int((old_started - new_started_utc).total_seconds())
+
+    if new_started_utc > utc_now():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Время начала не может быть в будущем",
+        )
+
+    if delta_sec == 0:
+        return BroadcastSessionOut(
+            id=bs.id,
+            stream_event_id=bs.stream_event_id,
+            day_index=bs.day_index,
+            operator_id=bs.operator_id,
+            started_at=bs.started_at,
+            ended_at=bs.ended_at,
+            is_active=True,
+        )
+
+    mentions = list(bs.mentions)
+    for m in mentions:
+        if m.original_offset_sec + delta_sec < 0 or m.adjusted_offset_sec + delta_sec < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Указанное время приводит к отрицательным таймкодам. Задайте более раннее время начала эфира "
+                "(когда реально пошла картинка).",
+            )
+    for m in mentions:
+        for adj in m.adjustments:
+            if adj.previous_adjusted_sec + delta_sec < 0 or adj.new_adjusted_sec + delta_sec < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Указанное время несовместимо с историей правок. Задайте более раннее время начала эфира.",
+                )
+
+    for m in mentions:
+        m.original_offset_sec += delta_sec
+        m.adjusted_offset_sec += delta_sec
+        for adj in m.adjustments:
+            adj.previous_adjusted_sec += delta_sec
+            adj.new_adjusted_sec += delta_sec
+
+    bs.started_at = new_started_utc
+
+    await write_audit(
+        session,
+        user_id=actor.id,
+        action_type=AuditActionType.BROADCAST_ACTUAL_START,
+        entity_type="broadcast_session",
+        entity_id=str(bs.id),
+        payload_before={"started_at": old_started.isoformat()},
+        payload_after={
+            "started_at": new_started_utc.isoformat(),
+            "delta_sec": delta_sec,
+            "day_index": day_index,
+        },
+    )
+    await session.commit()
+    await session.refresh(bs)
+    return BroadcastSessionOut(
+        id=bs.id,
+        stream_event_id=bs.stream_event_id,
+        day_index=bs.day_index,
+        operator_id=bs.operator_id,
+        started_at=bs.started_at,
+        ended_at=bs.ended_at,
+        is_active=True,
+    )
 
 
 async def add_sponsor_mention(session: AsyncSession, *, actor: User, broadcast_session_id: UUID) -> SponsorMentionOut:

@@ -36,6 +36,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import type { LogoLibraryItemOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
 import { apiFetch, fetchAuthorizedBlob, triggerBlobDownload, uploadLogosBatchRequest } from '@/api/client'
+import { BroadcastActualStartPanel } from '@/components/BroadcastActualStartPanel'
 import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateTimeRu } from '@/utils/datetime'
@@ -232,6 +233,30 @@ export const ManagerStreamPage: React.FC = () => {
       <Typography.Title level={3} style={{ marginTop: 0 }}>
         Редактирование
       </Typography.Title>
+
+      {data && data.active_broadcasts.length > 0 ? (
+        <Card
+          size="small"
+          title="Активный эфир — фактическое время начала"
+          style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
+          styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
+        >
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            Если оператор нажал «Начать эфир» позже, чем реально пошла картинка, укажите время старта в МСК — таймкоды
+            сдвинутся.
+          </Typography.Paragraph>
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            {data.active_broadcasts.map((b) => (
+              <div key={b.id}>
+                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                  День {b.day_index}
+                </Typography.Text>
+                <BroadcastActualStartPanel streamId={streamId} dayIndex={b.day_index} startedAtIso={b.started_at} />
+              </div>
+            ))}
+          </Space>
+        </Card>
+      ) : null}
 
       <Card
         title="Упоминания оператора"

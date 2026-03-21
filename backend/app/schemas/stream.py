@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import AnyHttpUrl, BaseModel, Field, field_validator
 
+from app.core.timezone import MOSCOW_TZ
 from app.schemas.logo import StreamLogoItemOut
 
 class StreamDayIn(BaseModel):
@@ -37,6 +38,19 @@ class StreamLockBody(BaseModel):
         default=None,
         description="Если null или пусто — все дни 1..N; иначе только перечисленные дни",
     )
+
+
+class BroadcastActualStartBody(BaseModel):
+    """Фактическое время начала эфира (когда картинка реально пошла). Без таймзоны — интерпретируется как МСК."""
+
+    actual_started_at: datetime
+
+    @field_validator("actual_started_at", mode="after")
+    @classmethod
+    def naive_as_moscow(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            return v.replace(tzinfo=MOSCOW_TZ)
+        return v
 
 
 class DayAssignmentOut(BaseModel):

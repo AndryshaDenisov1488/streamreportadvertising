@@ -34,6 +34,7 @@ import { Link, useParams } from 'react-router-dom'
 import type { BroadcastChecklistOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
 import { apiFetch, fetchAuthorizedBlob, triggerBlobDownload } from '@/api/client'
 import { useAuth } from '@/auth/AuthContext'
+import { BroadcastActualStartPanel } from '@/components/BroadcastActualStartPanel'
 import { useStreamWs } from '@/hooks/useStreamWs'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu, formatDateTimeRu } from '@/utils/datetime'
@@ -195,6 +196,15 @@ export const OperatorEventPage: React.FC = () => {
 
   const iHaveThisDay = Boolean(
     user?.role === 'SUPERADMIN' || (operatorForSelectedDay != null && operatorForSelectedDay === user?.id),
+  )
+
+  const canRealignBroadcast = useMemo(
+    () =>
+      Boolean(
+        activeSession &&
+          (user?.role === 'SUPERADMIN' || (user?.role === 'OPERATOR' && !foreignLock && iHaveThisDay)),
+      ),
+    [activeSession, user?.role, foreignLock, iHaveThisDay],
   )
 
   const canTakeLock = useMemo(() => {
@@ -814,6 +824,14 @@ export const OperatorEventPage: React.FC = () => {
                   >
                     Остановить эфир
                   </Button>
+                  {activeSession ? (
+                    <BroadcastActualStartPanel
+                      streamId={streamId}
+                      dayIndex={day}
+                      startedAtIso={activeSession.started_at}
+                      disabled={!canRealignBroadcast}
+                    />
+                  ) : null}
                   <Button
                     type="default"
                     size="large"

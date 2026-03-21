@@ -14,6 +14,7 @@ export const auditActionLabel = (code: string): string => {
     STREAM_UNLOCK: 'Мероприятие снято с работы',
     BROADCAST_START: 'Начало эфира',
     BROADCAST_STOP: 'Остановка эфира',
+    BROADCAST_ACTUAL_START: 'Уточнение фактического времени начала эфира',
     MENTION_CREATE: 'Добавлено упоминание',
     MENTION_UPDATE: 'Изменено упоминание',
     LOGO_UPLOAD: 'Загрузка логотипа в медиатеку',
