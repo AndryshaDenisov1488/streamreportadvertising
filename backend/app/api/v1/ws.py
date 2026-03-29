@@ -1,6 +1,8 @@
+import asyncio
+import json
 import uuid
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
 from app.core.security import decode_token_safe
@@ -10,14 +12,27 @@ from app.websocket.hub import StreamEventHub
 
 router = APIRouter()
 
+_WS_AUTH_TIMEOUT_S = 15.0
+
 
 @router.websocket("/ws/stream-events/{stream_event_id}")
 async def stream_events_ws(
     websocket: WebSocket,
     stream_event_id: uuid.UUID,
-    token: str | None = Query(default=None),
 ) -> None:
-    if not token:
+    await websocket.accept()
+    try:
+        raw = await asyncio.wait_for(websocket.receive_text(), timeout=_WS_AUTH_TIMEOUT_S)
+    except (asyncio.TimeoutError, WebSocketDisconnect):
+        await websocket.close(code=4401)
+        return
+    try:
+        msg = json.loads(raw)
+    except json.JSONDecodeError:
+        await websocket.close(code=4401)
+        return
+    token = msg.get("access_token") or msg.get("token")
+    if not token or not isinstance(token, str):
         await websocket.close(code=4401)
         return
     payload = decode_token_safe(token)

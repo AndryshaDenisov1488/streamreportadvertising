@@ -4,12 +4,16 @@ import { getAccessToken } from '@/api/client'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? '/api/v1'
 
-export const useStreamWs = (streamId: string | undefined, onEvent: (msg: Record<string, unknown>) => void) => {
+export const useStreamWs = (
+  streamId: string | undefined,
+  onEvent: (msg: Record<string, unknown>) => void,
+  enabled = true,
+) => {
   const cb = useRef(onEvent)
   cb.current = onEvent
 
   useEffect(() => {
-    if (!streamId) {
+    if (!streamId || !enabled) {
       return
     }
     const token = getAccessToken()
@@ -17,8 +21,16 @@ export const useStreamWs = (streamId: string | undefined, onEvent: (msg: Record<
       return
     }
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const url = `${proto}://${window.location.host}${apiBase}/ws/stream-events/${streamId}?token=${encodeURIComponent(token)}`
+    const url = `${proto}://${window.location.host}${apiBase}/ws/stream-events/${streamId}`
     const ws = new WebSocket(url)
+    ws.onopen = () => {
+      const t = getAccessToken()
+      if (!t || ws.readyState !== WebSocket.OPEN) {
+        ws.close()
+        return
+      }
+      ws.send(JSON.stringify({ type: 'auth', access_token: t }))
+    }
     ws.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data as string) as Record<string, unknown>
@@ -30,5 +42,5 @@ export const useStreamWs = (streamId: string | undefined, onEvent: (msg: Record<
     return () => {
       ws.close()
     }
-  }, [streamId])
+  }, [streamId, enabled])
 }

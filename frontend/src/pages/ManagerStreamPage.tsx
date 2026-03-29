@@ -110,10 +110,14 @@ export const ManagerStreamPage: React.FC = () => {
       (await apiFetch(`/stream-events/${streamId}/days/${mentionDay}/mentions`)) as SponsorMentionOut[],
   })
 
-  useStreamWs(streamId, () => {
-    void qc.invalidateQueries({ queryKey: ['mentions', streamId] })
-    void qc.invalidateQueries({ queryKey: ['stream', streamId] })
-  })
+  useStreamWs(
+    streamId,
+    () => {
+      void qc.invalidateQueries({ queryKey: ['mentions', streamId] })
+      void qc.invalidateQueries({ queryKey: ['stream', streamId] })
+    },
+    Boolean(data),
+  )
 
   const logosLibraryQuery = useQuery({
     queryKey: ['logos-library'],

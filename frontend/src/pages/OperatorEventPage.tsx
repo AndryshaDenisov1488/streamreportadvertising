@@ -114,17 +114,21 @@ export const OperatorEventPage: React.FC = () => {
 
   const [wsViewers, setWsViewers] = useState<number | null>(null)
 
-  useStreamWs(streamId, (msg) => {
-    if (msg.type === 'presence') {
-      const p = msg.payload as { viewers?: number } | undefined
-      if (p?.viewers != null) {
-        setWsViewers(p.viewers)
+  useStreamWs(
+    streamId,
+    (msg) => {
+      if (msg.type === 'presence') {
+        const p = msg.payload as { viewers?: number } | undefined
+        if (p?.viewers != null) {
+          setWsViewers(p.viewers)
+        }
+        return
       }
-      return
-    }
-    void qc.invalidateQueries({ queryKey: ['stream', streamId] })
-    void qc.invalidateQueries({ queryKey: ['mentions', streamId, day] })
-  })
+      void qc.invalidateQueries({ queryKey: ['stream', streamId] })
+      void qc.invalidateQueries({ queryKey: ['mentions', streamId, day] })
+    },
+    detailQuery.isSuccess,
+  )
 
   const mentionsQuery = useQuery({
     queryKey: ['mentions', streamId, day],

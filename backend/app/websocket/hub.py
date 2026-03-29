@@ -15,7 +15,6 @@ class StreamEventHub:
         if len(room) >= self._max_subscribers_per_room:
             await websocket.close(code=4429)
             return False
-        await websocket.accept()
         room.append(websocket)
         await self._publish_presence(stream_event_id)
         return True

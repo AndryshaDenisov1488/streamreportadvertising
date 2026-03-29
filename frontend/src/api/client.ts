@@ -39,14 +39,67 @@ const buildHeaders = (init?: HeadersInit, token?: string | null): HeadersInit =>
   return h
 }
 
+let refreshInFlight: Promise<boolean> | null = null
+
+/** Обновляет access JWT по httpOnly refresh-cookie; дедупликация параллельных вызовов */
+export const tryRefreshAccessToken = async (): Promise<boolean> => {
+  if (refreshInFlight) {
+    return refreshInFlight
+  }
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': getOrCreateRequestId(),
+        },
+        body: '{}',
+      })
+      if (!res.ok) {
+        return false
+      }
+      const data = (await res.json()) as { access_token?: string }
+      if (!data.access_token) {
+        return false
+      }
+      setAccessToken(data.access_token)
+      return true
+    } catch {
+      return false
+    }
+  })().finally(() => {
+    refreshInFlight = null
+  })
+  return refreshInFlight
+}
+
+const fetchWithAuthRetry = async (url: string, init: RequestInit): Promise<Response> => {
+  const run = async () => {
+    const token = getAccessToken()
+    const h = new Headers(init.headers)
+    if (!h.has('X-Request-ID')) {
+      h.set('X-Request-ID', getOrCreateRequestId())
+    }
+    if (token) {
+      h.set('Authorization', `Bearer ${token}`)
+    }
+    return fetch(url, { ...init, credentials: 'include', headers: h })
+  }
+  let res = await run()
+  if (res.status === 401) {
+    const ok = await tryRefreshAccessToken()
+    if (ok) {
+      res = await run()
+    }
+  }
+  return res
+}
+
 /** Скачивание бинарного ответа с авторизацией (ZIP, файлы) */
 export const fetchAuthorizedBlob = async (path: string): Promise<{ blob: Blob; filename: string }> => {
-  const token = getAccessToken()
-  const headers: Record<string, string> = { 'X-Request-ID': getOrCreateRequestId() }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers })
+  const res = await fetchWithAuthRetry(`${API_BASE}${path}`, { method: 'GET' })
   if (!res.ok) {
     let detail = res.statusText
     try {
@@ -89,16 +142,9 @@ export const triggerBlobDownload = (blob: Blob, filename: string) => {
 export const uploadLogoRequest = async (file: File) => {
   const form = new FormData()
   form.append('file', file)
-  const token = getAccessToken()
-  const headers: Record<string, string> = { 'X-Request-ID': getOrCreateRequestId() }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-  const res = await fetch(`${API_BASE}/logos/upload`, {
+  const res = await fetchWithAuthRetry(`${API_BASE}/logos/upload`, {
     method: 'POST',
     body: form,
-    credentials: 'include',
-    headers,
   })
   if (!res.ok) {
     let detail = res.statusText
@@ -124,16 +170,9 @@ export const uploadLogosBatchRequest = async (files: File[]) => {
   for (const f of files) {
     form.append('files', f)
   }
-  const token = getAccessToken()
-  const headers: Record<string, string> = { 'X-Request-ID': getOrCreateRequestId() }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-  const res = await fetch(`${API_BASE}/logos/upload-batch`, {
+  const res = await fetchWithAuthRetry(`${API_BASE}/logos/upload-batch`, {
     method: 'POST',
     body: form,
-    credentials: 'include',
-    headers,
   })
   if (!res.ok) {
     let detail = res.statusText
@@ -152,17 +191,29 @@ export const uploadLogosBatchRequest = async (files: File[]) => {
 
 export const apiFetch = async (path: string, options: FetchOptions = {}) => {
   const { skipAuth, headers, body, ...rest } = options
-  const token = skipAuth ? null : getAccessToken()
-  const merged = new Headers(buildHeaders(headers, token))
-  if (body && typeof body === 'string' && !merged.has('Content-Type')) {
-    merged.set('Content-Type', 'application/json')
+  const url = `${API_BASE}${path}`
+  const pathOnly = path.split('?')[0]
+  const allowRefreshOn401 = !skipAuth && pathOnly !== '/auth/login'
+  const execute = async (): Promise<Response> => {
+    const token = skipAuth ? null : getAccessToken()
+    const merged = new Headers(buildHeaders(headers, token))
+    if (body && typeof body === 'string' && !merged.has('Content-Type')) {
+      merged.set('Content-Type', 'application/json')
+    }
+    return fetch(url, {
+      ...rest,
+      body,
+      credentials: 'include',
+      headers: merged,
+    })
   }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...rest,
-    body,
-    credentials: 'include',
-    headers: merged,
-  })
+  let res = await execute()
+  if (res.status === 401 && allowRefreshOn401) {
+    const refreshed = await tryRefreshAccessToken()
+    if (refreshed) {
+      res = await execute()
+    }
+  }
   if (!res.ok) {
     let detail = res.statusText
     try {
@@ -227,18 +278,9 @@ export const patchProfileRequest = async (body: {
 export const uploadAvatarRequest = async (file: File) => {
   const form = new FormData()
   form.append('file', file)
-  const token = getAccessToken()
-  const headers: Record<string, string> = {
-    'X-Request-ID': getOrCreateRequestId(),
-  }
-  if (token) {
-    headers.Authorization = `Bearer ${token}`
-  }
-  const res = await fetch(`${API_BASE}/profile/avatar`, {
+  const res = await fetchWithAuthRetry(`${API_BASE}/profile/avatar`, {
     method: 'POST',
     body: form,
-    credentials: 'include',
-    headers,
   })
   if (!res.ok) {
     let detail = res.statusText
