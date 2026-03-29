@@ -49,6 +49,9 @@ const formatElapsed = (totalSec: number) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+const LOGO_UPLOAD_MAX_FILES = 30
+const LOGO_UPLOAD_MAX_BYTES = 15 * 1024 * 1024
+
 export const ManagerStreamPage: React.FC = () => {
   const { id } = useParams()
   const streamId = id as string
@@ -102,6 +105,48 @@ export const ManagerStreamPage: React.FC = () => {
       setLogoBatchBusy(false)
     }
   }, [addLogoOpen])
+
+  const handleConfirmLogoUpload = async () => {
+    const raw: File[] = []
+    for (const f of logoModalUploadList) {
+      if (f.originFileObj) {
+        raw.push(f.originFileObj as File)
+      }
+    }
+    if (!raw.length) {
+      message.warning('Выберите файлы, затем нажмите «Загрузить к эфиру»')
+      return
+    }
+    if (raw.length > LOGO_UPLOAD_MAX_FILES) {
+      message.warning(`Не больше ${LOGO_UPLOAD_MAX_FILES} файлов за раз`)
+      return
+    }
+    for (const f of raw) {
+      if (f.size > LOGO_UPLOAD_MAX_BYTES) {
+        message.error(`Файл «${f.name}» больше 15 МБ`)
+        return
+      }
+    }
+    setLogoBatchBusy(true)
+    try {
+      const items = await uploadLogosBatchRequest(raw)
+      for (const item of items) {
+        await apiFetch(`/stream-events/${streamId}/logos`, {
+          method: 'POST',
+          body: JSON.stringify({ logo_id: item.id }),
+        })
+      }
+      message.success(`Добавлено файлов: ${items.length}`)
+      await qc.invalidateQueries({ queryKey: ['stream', streamId] })
+      await qc.invalidateQueries({ queryKey: ['logos-library'] })
+      setLogoModalUploadList([])
+      setAddLogoOpen(false)
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setLogoBatchBusy(false)
+    }
+  }
 
   const mentionsQuery = useQuery({
     queryKey: ['mentions', streamId, mentionDay],
@@ -449,52 +494,32 @@ export const ManagerStreamPage: React.FC = () => {
               label: 'Загрузить файл',
               children: (
                 <Spin spinning={logoBatchBusy} tip="Загрузка…">
-                  <Upload.Dragger
-                    multiple
-                    maxCount={30}
-                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
-                    fileList={logoModalUploadList}
-                    disabled={logoBatchBusy}
-                    beforeUpload={async (file, fileList) => {
-                      const idx = fileList.findIndex((f) => f.uid === file.uid)
-                      if (idx !== fileList.length - 1) {
-                        return false
-                      }
-                      const raw = (fileList as UploadFile[])
-                        .map((f) => f.originFileObj)
-                        .filter((x) => x != null) as File[]
-                      if (!raw.length) {
-                        return false
-                      }
-                      setLogoBatchBusy(true)
-                      try {
-                        const items = await uploadLogosBatchRequest(raw)
-                        for (const item of items) {
-                          await apiFetch(`/stream-events/${streamId}/logos`, {
-                            method: 'POST',
-                            body: JSON.stringify({ logo_id: item.id }),
-                          })
-                        }
-                        message.success(`Добавлено файлов: ${items.length}`)
-                        await qc.invalidateQueries({ queryKey: ['stream', streamId] })
-                        await qc.invalidateQueries({ queryKey: ['logos-library'] })
-                        setLogoModalUploadList([])
-                        setAddLogoOpen(false)
-                      } catch (e) {
-                        message.error((e as Error).message)
-                      } finally {
-                        setLogoBatchBusy(false)
-                      }
-                      return false
-                    }}
-                    onChange={({ fileList }) => setLogoModalUploadList(fileList)}
-                  >
-                    <p className="ant-upload-text">Перетащите файлы или нажмите для выбора</p>
-                    <p className="ant-upload-hint" style={{ color: '#64748b' }}>
-                      Можно выбрать несколько файлов сразу. PNG, JPEG, GIF, WebP, SVG до 15 МБ каждый, не более 30 за
-                      раз.
-                    </p>
-                  </Upload.Dragger>
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <Upload.Dragger
+                      multiple
+                      maxCount={LOGO_UPLOAD_MAX_FILES}
+                      accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                      fileList={logoModalUploadList}
+                      disabled={logoBatchBusy}
+                      beforeUpload={() => false}
+                      onChange={({ fileList }) => setLogoModalUploadList(fileList)}
+                    >
+                      <p className="ant-upload-text">Перетащите файлы или нажмите для выбора</p>
+                      <p className="ant-upload-hint" style={{ color: '#64748b' }}>
+                        Можно выбрать несколько файлов сразу. PNG, JPEG, GIF, WebP, SVG до 15 МБ каждый, не более{' '}
+                        {LOGO_UPLOAD_MAX_FILES} за раз. После выбора нажмите кнопку ниже.
+                      </p>
+                    </Upload.Dragger>
+                    <Button
+                      type="primary"
+                      block
+                      loading={logoBatchBusy}
+                      disabled={logoModalUploadList.length === 0 || logoBatchBusy}
+                      onClick={() => void handleConfirmLogoUpload()}
+                    >
+                      Загрузить к эфиру
+                    </Button>
+                  </Space>
                 </Spin>
               ),
             },
