@@ -11,13 +11,14 @@ from app.models.stream import (
     StreamEvent,
     StreamEventTemplate,
 )
-from app.models.user import RefreshToken, User
+from app.models.user import PasswordResetToken, RefreshToken, User
 
 __all__ = [
     "AuditLog",
     "AuditActionType",
     "UserRole",
     "User",
+    "PasswordResetToken",
     "RefreshToken",
     "StreamEvent",
     "Logo",

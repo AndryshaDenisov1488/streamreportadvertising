@@ -247,6 +247,35 @@ export const loginRequest = async (email: string, password: string) => {
   return data
 }
 
+export const forgotPasswordRequest = async (email: string) => {
+  return (await apiFetch('/auth/forgot-password', {
+    method: 'POST',
+    skipAuth: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })) as { message: string }
+}
+
+export const validatePasswordResetTokenRequest = async (token: string) => {
+  const q = new URLSearchParams({ token })
+  return (await apiFetch(`/auth/password-reset/validate?${q.toString()}`, {
+    skipAuth: true,
+  })) as { ok: boolean }
+}
+
+export const resetPasswordRequest = async (payload: {
+  token: string
+  new_password: string
+  new_password_confirm: string
+}) => {
+  await apiFetch('/auth/reset-password', {
+    method: 'POST',
+    skipAuth: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
 export const logoutRequest = async () => {
   await apiFetch('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
   setAccessToken(null)

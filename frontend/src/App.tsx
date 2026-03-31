@@ -3,7 +3,9 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { ManagerStreamPage } from '@/pages/ManagerStreamPage'
 import { ManagerStreamsPage } from '@/pages/ManagerStreamsPage'
@@ -18,6 +20,8 @@ export const App: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/first-login"
         element={

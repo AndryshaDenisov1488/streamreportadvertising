@@ -1,17 +1,27 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.deps import AnyAuthenticated, RefreshJti
 from app.core.limiter import limiter
 from app.db.session import get_db
-from app.schemas.auth import LoginRequest, MeOut, RefreshRequest, TokenResponse
+from app.schemas.auth import (
+    ForgotPasswordIn,
+    ForgotPasswordOut,
+    LoginRequest,
+    MeOut,
+    PasswordResetValidateOut,
+    RefreshRequest,
+    ResetPasswordIn,
+    TokenResponse,
+)
 from app.schemas.profile import ChangePasswordIn, SessionOut
 from app.schemas.platform import AcceptInviteIn
 from app.schemas.user import UserOut
-from app.services import auth_service, invite_service
+from app.services import auth_service, invite_service, password_reset_service
+from app.services.password_reset_email_service import send_password_reset_email_task
 from app.utils.client_ip import client_ip_from_request
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -45,6 +55,47 @@ async def accept_invite_route(
         path="/",
     )
     return TokenResponse(access_token=access, user=UserOut.model_validate(user))
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordOut)
+@limiter.limit("5/minute")
+async def forgot_password_route(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    body: ForgotPasswordIn,
+    session: AsyncSession = Depends(get_db),
+) -> ForgotPasswordOut:
+    link, to_email, greeting = await password_reset_service.request_password_reset(session, email=str(body.email))
+    if link and to_email:
+        background_tasks.add_task(send_password_reset_email_task, to_email, link, greeting)
+    return ForgotPasswordOut()
+
+
+@router.get("/password-reset/validate", response_model=PasswordResetValidateOut)
+@limiter.limit("60/minute")
+async def password_reset_validate_route(
+    request: Request,
+    token: str | None = Query(None),
+    session: AsyncSession = Depends(get_db),
+) -> PasswordResetValidateOut:
+    if not token:
+        return PasswordResetValidateOut(ok=False)
+    ok = await password_reset_service.token_is_valid(session, raw_token=token)
+    return PasswordResetValidateOut(ok=ok)
+
+
+@router.post("/reset-password", status_code=204)
+@limiter.limit("20/minute")
+async def reset_password_route(
+    request: Request,
+    body: ResetPasswordIn,
+    session: AsyncSession = Depends(get_db),
+) -> None:
+    await password_reset_service.reset_password_with_token(
+        session,
+        raw_token=body.token,
+        new_password=body.new_password,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)

@@ -1,7 +1,7 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons'
 import { App as AntApp, Button, Card, Form, Input, Typography } from 'antd'
 import React from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/BrandLogo'
 import { useAuth } from '@/auth/AuthContext'
@@ -68,6 +68,9 @@ export const LoginPage: React.FC = () => {
           <Button type="primary" htmlType="submit" size="large" block>
             Войти
           </Button>
+          <div style={{ marginTop: 16, textAlign: 'center' }}>
+            <Link to="/forgot-password">Забыли пароль?</Link>
+          </div>
         </Form>
       </Card>
     </div>

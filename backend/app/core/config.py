@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Публичный URL панели (для ссылок в письмах), например https://streaming.example.ru
     app_public_base_url: str = ""
 
+    # Срок жизни ссылки сброса пароля (минуты)
+    password_reset_expire_minutes: int = 10
+
     sentry_dsn: str = ""
     sentry_environment: str = "development"
     sentry_traces_sample_rate: float = 0.1
