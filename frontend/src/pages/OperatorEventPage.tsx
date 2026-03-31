@@ -198,17 +198,24 @@ export const OperatorEventPage: React.FC = () => {
 
   const iHaveLock = Boolean(user && (user.role === 'SUPERADMIN' || myDayIndices.length > 0))
 
-  const iHaveThisDay = Boolean(
-    user?.role === 'SUPERADMIN' || (operatorForSelectedDay != null && operatorForSelectedDay === user?.id),
+  const dayIsAssigned = operatorForSelectedDay != null
+  const iAmAssignedOperator = Boolean(operatorForSelectedDay != null && operatorForSelectedDay === user?.id)
+  /** Суперадмин или назначенный на день оператор (упоминания, таймер простоя) */
+  const iOperateThisDay = Boolean(
+    user?.role === 'SUPERADMIN' || (!foreignLock && iAmAssignedOperator),
   )
+  const canStartBroadcast = Boolean(
+    !foreignLock && dayIsAssigned && (user?.role === 'SUPERADMIN' || iAmAssignedOperator),
+  )
+  const restartBlocked = Boolean(data?.broadcast_restart_blocked_days?.includes(day))
 
   const canRealignBroadcast = useMemo(
     () =>
       Boolean(
         activeSession &&
-          (user?.role === 'SUPERADMIN' || (user?.role === 'OPERATOR' && !foreignLock && iHaveThisDay)),
+          (user?.role === 'SUPERADMIN' || (user?.role === 'OPERATOR' && !foreignLock && iAmAssignedOperator)),
       ),
-    [activeSession, user?.role, foreignLock, iHaveThisDay],
+    [activeSession, user?.role, foreignLock, iAmAssignedOperator],
   )
 
   const canTakeLock = useMemo(() => {
@@ -263,14 +270,14 @@ export const OperatorEventPage: React.FC = () => {
   }, [activeSession, lastMentionMs, idleDismissVersion, tick])
 
   const showIdleReminder = useMemo(() => {
-    if (!idleAnchorMs || !activeSession || foreignLock || !iHaveThisDay) {
+    if (!idleAnchorMs || !activeSession || foreignLock || !iOperateThisDay) {
       return false
     }
     if (user?.role !== 'OPERATOR') {
       return false
     }
     return Date.now() - idleAnchorMs >= IDLE_REMINDER_MS
-  }, [idleAnchorMs, activeSession, foreignLock, iHaveThisDay, tick, user?.role])
+  }, [idleAnchorMs, activeSession, foreignLock, iOperateThisDay, tick, user?.role])
 
   const handleIdleReminderDismiss = () => {
     lastIdleDismissAtRef.current = Date.now()
@@ -379,7 +386,11 @@ export const OperatorEventPage: React.FC = () => {
       return
     }
     if (foreignLock) {
-      message.warning('Мероприятие занято другим оператором')
+      message.warning('Этот день у другого оператора')
+      return
+    }
+    if (!iOperateThisDay) {
+      message.warning('Добавлять упоминания может назначенный на день оператор (или суперадмин)')
       return
     }
     mentionMut.mutate(activeSession.id)
@@ -387,11 +398,23 @@ export const OperatorEventPage: React.FC = () => {
 
   const handleStart = () => {
     if (foreignLock) {
-      message.warning('Мероприятие занято другим оператором')
+      message.warning('Этот день назначен другому оператору')
       return
     }
-    if (!iHaveThisDay) {
-      message.warning('Сначала возьмите этот день в работу')
+    if (!dayIsAssigned) {
+      message.warning(
+        'Сначала назначьте день: «Взять в работу» — все свободные дни или отметьте нужные в списке',
+      )
+      return
+    }
+    if (user?.role === 'OPERATOR' && !iAmAssignedOperator) {
+      message.warning('Чтобы вести эфир этого дня, возьмите его в работу на себя')
+      return
+    }
+    if (restartBlocked) {
+      message.warning(
+        'Повторный старт недоступен: по этому дню уже был эфир дольше часа с таймкодами',
+      )
       return
     }
     startMut.mutate()
@@ -450,10 +473,12 @@ export const OperatorEventPage: React.FC = () => {
           <Card size="small" style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
             <Space direction={isComfortable ? 'horizontal' : 'vertical'} size="middle" style={{ width: '100%' }}>
               <Typography.Text>Статус (день {day}):</Typography.Text>
-              {user?.role === 'SUPERADMIN' ? (
-                <Badge status="warning" text="Суперадмин — полный доступ" />
+              {!dayIsAssigned ? (
+                <Badge status="warning" text="День не назначен — «Начать эфир» недоступен, пока кто-то не возьмёт день" />
+              ) : user?.role === 'SUPERADMIN' ? (
+                <Badge status="warning" text="Суперадмин — можно начать эфир по назначенному дню" />
               ) : foreignLock ? (
-                <Badge status="error" text="Этот день назначен другому оператору" />
+                <Badge status="error" text="Этот день у другого оператора" />
               ) : operatorForSelectedDay === user?.id ? (
                 <Badge status="processing" text="Этот день у вас" />
               ) : freeDays.length > 0 ? (
@@ -610,7 +635,7 @@ export const OperatorEventPage: React.FC = () => {
           </Card>
 
           <Modal
-            title="Какие дни берёте в работу?"
+            title="Взять дни в работу"
             open={lockModalOpen}
             onCancel={() => setLockModalOpen(false)}
             okText="Подтвердить"
@@ -623,6 +648,20 @@ export const OperatorEventPage: React.FC = () => {
             }}
             confirmLoading={lockMut.isPending}
           >
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+              Можно взять сразу все свободные дни или только выбранные — так разные операторы могут делить турнир по
+              дням.
+            </Typography.Paragraph>
+            <Space style={{ marginBottom: 12 }} wrap>
+              <Button
+                type="link"
+                style={{ paddingInline: 0 }}
+                onClick={() => setLockDayPick([...freeDays])}
+                disabled={freeDays.length === 0}
+              >
+                Выбрать все свободные дни ({freeDays.length})
+              </Button>
+            </Space>
             <Checkbox.Group
               style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
               options={freeDays.map((d) => ({ label: `День ${d}`, value: d }))}
@@ -806,17 +845,38 @@ export const OperatorEventPage: React.FC = () => {
                       {activeSession ? formatElapsed(elapsedSec) : '— : — : —'}
                     </Typography.Title>
                   </div>
-                  <Button
-                    type="primary"
-                    size="large"
-                    block
-                    icon={<PlayCircleOutlined />}
-                    disabled={Boolean(activeSession) || foreignLock || !iHaveThisDay}
-                    loading={startMut.isPending}
-                    onClick={() => handleStart()}
+                  <Tooltip
+                    title={
+                      restartBlocked
+                        ? 'Этот день уже был в эфире более часа с таймкодами — новый старт недоступен'
+                        : !dayIsAssigned
+                          ? 'Сначала нажмите «Взять в работу» и назначьте этот день (или весь турнир)'
+                          : user?.role === 'OPERATOR' && !iAmAssignedOperator
+                            ? 'Этот день у другого оператора — возьмите свободный день или согласуйте переназначение'
+                            : undefined
+                    }
                   >
-                    Начать эфир
-                  </Button>
+                    <span style={{ display: 'block', width: '100%' }}>
+                      <Button
+                        type="primary"
+                        size="large"
+                        block
+                        icon={<PlayCircleOutlined />}
+                        disabled={Boolean(
+                          activeSession || foreignLock || !canStartBroadcast || restartBlocked,
+                        )}
+                        loading={startMut.isPending}
+                        onClick={() => handleStart()}
+                      >
+                        Начать эфир
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  {restartBlocked ? (
+                    <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                      Повторный старт отключён: был завершённый эфир &gt; 1 ч с упоминаниями.
+                    </Typography.Text>
+                  ) : null}
                   <Button
                     size="large"
                     block
@@ -841,7 +901,7 @@ export const OperatorEventPage: React.FC = () => {
                     size="large"
                     block
                     icon={<PlusOutlined />}
-                    disabled={!activeSession || foreignLock}
+                    disabled={!activeSession || foreignLock || !iOperateThisDay}
                     loading={mentionMut.isPending}
                     onClick={() => handleAddMention()}
                   >
@@ -910,7 +970,7 @@ export const OperatorEventPage: React.FC = () => {
                         <Button
                           key="adj"
                           type={isComfortable ? 'link' : 'default'}
-                          disabled={foreignLock || !iHaveThisDay}
+                          disabled={foreignLock || !iOperateThisDay}
                           block={!isComfortable}
                           size={isComfortable ? 'middle' : 'large'}
                           onClick={() => {

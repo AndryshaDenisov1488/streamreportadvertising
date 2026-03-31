@@ -134,6 +134,8 @@ export type StreamEventDetailOut = {
   day_assignments: DayAssignmentOut[]
   days: StreamDayOut[]
   active_broadcasts: BroadcastSessionOut[]
+  /** Дни без повторного старта после длинного эфира с таймкодами */
+  broadcast_restart_blocked_days?: number[]
   /** С бэкенда v2+; при старых ответах может отсутствовать */
   content_url?: string | null
   logos?: StreamLogoItemOut[]

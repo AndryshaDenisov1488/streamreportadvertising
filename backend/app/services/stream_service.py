@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -38,6 +38,9 @@ from app.services.audit_service import write_audit
 from app.services.notification_service import create_for_users_with_roles
 from app.utils.display_name import user_display_name
 from app.utils.timecode import seconds_to_hhmmss
+
+# Повторный старт эфира запрещён, если был завершённый эфир дольше этого порога и с упоминаниями (таймкодами)
+BROADCAST_RESTART_BLOCK_MIN_DURATION = timedelta(hours=1)
 
 
 def _mention_to_out(mention: SponsorMention) -> SponsorMentionOut:
@@ -108,6 +111,46 @@ async def assert_valid_stream_day(session: AsyncSession, stream_id: UUID, day_in
     ev = await _get_event(session, stream_id)
     if day_index > ev.duration_days:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="День вне длительности мероприятия")
+
+
+async def _broadcast_restart_blocked_days(
+    session: AsyncSession, *, stream_id: UUID, duration_days: int
+) -> list[int]:
+    """Дни, для которых нельзя снова начать эфир (уже был длинный эфир с таймкодами)."""
+    result = await session.execute(
+        select(BroadcastSession.id, BroadcastSession.day_index, BroadcastSession.started_at, BroadcastSession.ended_at).where(
+            BroadcastSession.stream_event_id == stream_id,
+            BroadcastSession.ended_at.isnot(None),
+        )
+    )
+    long_with_mentions: list[tuple[UUID, int]] = []
+    for sid, d_idx, started, ended in result.all():
+        if d_idx < 1 or d_idx > duration_days or not started or not ended:
+            continue
+        if ended - started <= BROADCAST_RESTART_BLOCK_MIN_DURATION:
+            continue
+        long_with_mentions.append((sid, d_idx))
+    if not long_with_mentions:
+        return []
+    session_ids = [x[0] for x in long_with_mentions]
+    cnt_r = await session.execute(
+        select(SponsorMention.broadcast_session_id, func.count())
+        .where(SponsorMention.broadcast_session_id.in_(session_ids))
+        .group_by(SponsorMention.broadcast_session_id)
+    )
+    with_counts = {row[0]: int(row[1]) for row in cnt_r.all()}
+    blocked: set[int] = set()
+    for sid, d_idx in long_with_mentions:
+        if with_counts.get(sid, 0) > 0:
+            blocked.add(d_idx)
+    return sorted(blocked)
+
+
+async def _day_blocked_for_new_broadcast(
+    session: AsyncSession, *, stream_id: UUID, day_index: int, duration_days: int
+) -> bool:
+    blocked = await _broadcast_restart_blocked_days(session, stream_id=stream_id, duration_days=duration_days)
+    return day_index in blocked
 
 
 async def _assignment_operator_for_day(
@@ -291,6 +334,9 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         for b in ev.broadcast_sessions
         if b.ended_at is None
     ]
+    restart_blocked = await _broadcast_restart_blocked_days(
+        session, stream_id=stream_id, duration_days=ev.duration_days
+    )
     return StreamEventDetailOut(
         id=ev.id,
         title=ev.title,
@@ -301,6 +347,7 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         day_assignments=day_assignments,
         days=[StreamDayOut.model_validate(d) for d in ev.days],
         active_broadcasts=active_broadcasts,
+        broadcast_restart_blocked_days=restart_blocked,
         content_url=ev.content_url,
         logos=_logos_for_stream(ev),
         created_at=ev.created_at,
@@ -621,12 +668,24 @@ async def start_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID
     ev = await _get_event(session, stream_id)
     if day_index > ev.duration_days:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="День вне длительности мероприятия")
+    if await _day_blocked_for_new_broadcast(
+        session, stream_id=stream_id, day_index=day_index, duration_days=ev.duration_days
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот день уже был в эфире более часа с таймкодами — повторный старт недоступен",
+        )
     day_op = await _assignment_operator_for_day(session, stream_id, day_index)
+    if day_op is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Сначала назначьте день на оператора: «Взять в работу» (весь турнир или выбранные дни)",
+        )
     if actor.role == UserRole.OPERATOR:
         if day_op != actor.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Нет назначения на этот день — возьмите соответствующие дни в работу",
+                detail="Нет назначения на этот день — возьмите этот день в работу",
             )
     elif actor.role != UserRole.SUPERADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
@@ -645,7 +704,7 @@ async def start_broadcast(session: AsyncSession, *, actor: User, stream_id: UUID
     if actor.role == UserRole.OPERATOR:
         operator_id = actor.id
     else:
-        operator_id = day_op or actor.id
+        operator_id = day_op
     bs = BroadcastSession(
         stream_event_id=stream_id,
         day_index=day_index,

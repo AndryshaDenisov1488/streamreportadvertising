@@ -127,6 +127,8 @@ class StreamEventDetailOut(BaseModel):
     """Назначения операторов по дням."""
     days: list[StreamDayOut]
     active_broadcasts: list[BroadcastSessionOut]
+    broadcast_restart_blocked_days: list[int] = []
+    """Дни, где после завершённого эфира >1 ч с таймкодами повторный «Начать эфир» недоступен."""
     content_url: str | None = None
     """Ссылка на материалы (например Яндекс.Диск)."""
     logos: list[StreamLogoItemOut] = []
