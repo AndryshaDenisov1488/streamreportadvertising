@@ -209,14 +209,37 @@ export const OperatorEventPage: React.FC = () => {
   )
   const restartBlocked = Boolean(data?.broadcast_restart_blocked_days?.includes(day))
 
-  const canRealignBroadcast = useMemo(
-    () =>
-      Boolean(
-        activeSession &&
-          (user?.role === 'SUPERADMIN' || (user?.role === 'OPERATOR' && !foreignLock && iAmAssignedOperator)),
-      ),
-    [activeSession, user?.role, foreignLock, iAmAssignedOperator],
-  )
+  const canRealignBroadcast = useMemo(() => {
+    if (!activeSession) {
+      return false
+    }
+    if (user?.role === 'SUPERADMIN' || user?.role === 'STREAM_MANAGER') {
+      return true
+    }
+    if (user?.role === 'OPERATOR') {
+      return Boolean(!foreignLock && iAmAssignedOperator)
+    }
+    return false
+  }, [activeSession, user?.role, foreignLock, iAmAssignedOperator])
+
+  const latestEndedForSelectedDay = useMemo(() => {
+    const list = data?.ended_broadcasts ?? []
+    return list.find((b) => b.day_index === day) ?? null
+  }, [data?.ended_broadcasts, day])
+
+  const canShowEndedRealignPanel = useMemo(() => {
+    const b = latestEndedForSelectedDay
+    if (!b) {
+      return false
+    }
+    if (user?.role === 'SUPERADMIN' || user?.role === 'STREAM_MANAGER') {
+      return true
+    }
+    if (user?.role === 'OPERATOR') {
+      return b.operator_id === user?.id
+    }
+    return false
+  }, [latestEndedForSelectedDay, user?.role, user?.id])
 
   const canTakeLock = useMemo(() => {
     if (!data || !user) {
@@ -894,6 +917,13 @@ export const OperatorEventPage: React.FC = () => {
                       dayIndex={day}
                       startedAtIso={activeSession.started_at}
                       disabled={!canRealignBroadcast}
+                    />
+                  ) : null}
+                  {!activeSession && canShowEndedRealignPanel && latestEndedForSelectedDay ? (
+                    <BroadcastActualStartPanel
+                      streamId={streamId}
+                      dayIndex={day}
+                      startedAtIso={latestEndedForSelectedDay.started_at}
                     />
                   ) : null}
                   <Button

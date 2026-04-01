@@ -687,8 +687,15 @@ def _can_realign_broadcast_start(actor: User, ev: StreamEvent, session_operator_
     return False
 
 
-def _can_realign_ended_broadcast_manager(actor: User) -> bool:
-    return actor.role in (UserRole.SUPERADMIN, UserRole.STREAM_MANAGER)
+def _can_realign_ended_broadcast(actor: User, bs: BroadcastSession) -> bool:
+    """Завершённый эфир: менеджер, суперадмин или оператор, который вёл эту сессию."""
+    if actor.role == UserRole.SUPERADMIN:
+        return True
+    if actor.role == UserRole.STREAM_MANAGER:
+        return True
+    if actor.role == UserRole.OPERATOR:
+        return bs.operator_id == actor.id
+    return False
 
 
 def _datetime_to_utc(dt: datetime) -> datetime:
@@ -833,7 +840,7 @@ async def realign_broadcast_actual_start(
         )
     )
     bs = result.scalar_one_or_none()
-    if bs is None and _can_realign_ended_broadcast_manager(actor):
+    if bs is None:
         result_ended = await session.execute(
             select(BroadcastSession)
             .options(selectinload(BroadcastSession.mentions).selectinload(SponsorMention.adjustments))
@@ -851,14 +858,14 @@ async def realign_broadcast_actual_start(
     if not bs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Эфир для этого дня не найден (или уже завершён — правку завершённого может сделать менеджер)",
+            detail="Эфир для этого дня не найден",
         )
 
     if bs.ended_at is not None:
-        if not _can_realign_ended_broadcast_manager(actor):
+        if not _can_realign_ended_broadcast(actor, bs):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Правка времени начала завершённого эфира доступна менеджеру или суперадмину",
+                detail="Недостаточно прав для правки времени начала этого завершённого эфира",
             )
     elif not _can_realign_broadcast_start(actor, ev, bs.operator_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")

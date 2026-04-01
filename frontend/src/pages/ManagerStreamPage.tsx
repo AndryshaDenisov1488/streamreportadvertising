@@ -329,8 +329,9 @@ export const ManagerStreamPage: React.FC = () => {
           styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
         >
           <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-            Доступно менеджеру и суперадмину: сдвиг времени старта так же сдвигает все таймкоды упоминаний этого эфира.
-            По каждому дню используется последний завершённый эфир.
+            Менеджер и суперадмин могут править любой завершённый эфир; оператор — последний завершённый эфир того дня,
+            если он его вёл. Сдвиг времени старта сдвигает все таймкоды упоминаний этого эфира. По каждому дню
+            используется последний завершённый эфир.
           </Typography.Paragraph>
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             {endedLatestPerDay.map((b) => (
