@@ -196,7 +196,20 @@ export const OperatorEventPage: React.FC = () => {
     user?.role !== 'SUPERADMIN' && operatorForSelectedDay && operatorForSelectedDay !== user?.id,
   )
 
-  const iHaveLock = Boolean(user && (user.role === 'SUPERADMIN' || myDayIndices.length > 0))
+  const superadminLockActionsBlocked = useMemo(
+    () =>
+      Boolean(
+        user?.role === 'SUPERADMIN' &&
+          (data?.day_assignments ?? []).some((a) => a.operator_id !== user.id),
+      ),
+    [user?.role, user?.id, data?.day_assignments],
+  )
+
+  const iHaveLock = Boolean(
+    user &&
+      ((user.role === 'OPERATOR' && myDayIndices.length > 0) ||
+        (user.role === 'SUPERADMIN' && !superadminLockActionsBlocked)),
+  )
 
   const dayIsAssigned = operatorForSelectedDay != null
   const iAmAssignedOperator = Boolean(operatorForSelectedDay != null && operatorForSelectedDay === user?.id)
@@ -245,11 +258,11 @@ export const OperatorEventPage: React.FC = () => {
     if (!data || !user) {
       return false
     }
-    if (user.role === 'SUPERADMIN') {
-      return true
+    if (user.role === 'SUPERADMIN' && superadminLockActionsBlocked) {
+      return false
     }
     return freeDays.length > 0
-  }, [data, user, freeDays.length])
+  }, [data, user, freeDays.length, superadminLockActionsBlocked])
 
   const [lockModalOpen, setLockModalOpen] = useState(false)
   const [lockDayPick, setLockDayPick] = useState<number[]>([])
@@ -498,6 +511,11 @@ export const OperatorEventPage: React.FC = () => {
               <Typography.Text>Статус (день {day}):</Typography.Text>
               {!dayIsAssigned ? (
                 <Badge status="warning" text="День не назначен — «Начать эфир» недоступен, пока кто-то не возьмёт день" />
+              ) : user?.role === 'SUPERADMIN' && superadminLockActionsBlocked ? (
+                <Badge
+                  status="default"
+                  text="Дни у операторов — назначения меняет только оператор (суперадмин: без «Взять/Снять»)"
+                />
               ) : user?.role === 'SUPERADMIN' ? (
                 <Badge status="warning" text="Суперадмин — можно начать эфир по назначенному дню" />
               ) : foreignLock ? (
@@ -514,33 +532,57 @@ export const OperatorEventPage: React.FC = () => {
                 style={{ width: isComfortable ? 'auto' : '100%' }}
                 size="middle"
               >
-                <Button
-                  type={canTakeLock ? 'primary' : 'default'}
-                  disabled={!canTakeLock}
-                  loading={lockMut.isPending}
-                  onClick={() => {
-                    if (freeDays.length === 0) {
-                      message.info('Нет свободных дней для назначения')
-                      return
-                    }
-                    setLockDayPick(freeDays)
-                    setLockModalOpen(true)
-                  }}
-                  block={!isComfortable}
-                  size="large"
+                <Tooltip
+                  title={
+                    superadminLockActionsBlocked
+                      ? 'Пока дни назначены операторам, взять дни в работу может только оператор'
+                      : !canTakeLock
+                        ? 'Нет свободных дней для назначения'
+                        : undefined
+                  }
                 >
-                  Взять в работу
-                </Button>
-                <Button
-                  danger
-                  disabled={!iHaveLock}
-                  loading={unlockMut.isPending}
-                  onClick={() => unlockMut.mutate()}
-                  block={!isComfortable}
-                  size="large"
+                  <span style={{ display: 'block', width: isComfortable ? 'auto' : '100%' }}>
+                    <Button
+                      type={canTakeLock ? 'primary' : 'default'}
+                      disabled={!canTakeLock}
+                      loading={lockMut.isPending}
+                      onClick={() => {
+                        if (freeDays.length === 0) {
+                          message.info('Нет свободных дней для назначения')
+                          return
+                        }
+                        setLockDayPick(freeDays)
+                        setLockModalOpen(true)
+                      }}
+                      block={!isComfortable}
+                      size="large"
+                    >
+                      Взять в работу
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip
+                  title={
+                    superadminLockActionsBlocked
+                      ? 'Пока дни назначены операторам, снять назначение может сам оператор'
+                      : !iHaveLock && user?.role === 'OPERATOR'
+                        ? 'Нет назначенных вам дней на этом мероприятии'
+                        : undefined
+                  }
                 >
-                  Снять с работы
-                </Button>
+                  <span style={{ display: 'block', width: isComfortable ? 'auto' : '100%' }}>
+                    <Button
+                      danger
+                      disabled={!iHaveLock}
+                      loading={unlockMut.isPending}
+                      onClick={() => unlockMut.mutate()}
+                      block={!isComfortable}
+                      size="large"
+                    >
+                      Снять с работы
+                    </Button>
+                  </span>
+                </Tooltip>
               </Space>
             </Space>
             {data.day_assignments.length > 0 ? (

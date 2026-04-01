@@ -220,6 +220,20 @@ async def _day_assignments_out(session: AsyncSession, stream_id: UUID) -> list[D
     ]
 
 
+async def _stream_has_assignments_to_other_than(
+    session: AsyncSession, *, stream_event_id: UUID, user_id: UUID
+) -> bool:
+    r = await session.execute(
+        select(func.count())
+        .select_from(StreamDayAssignment)
+        .where(
+            StreamDayAssignment.stream_event_id == stream_event_id,
+            StreamDayAssignment.operator_id != user_id,
+        )
+    )
+    return int(r.scalar_one() or 0) > 0
+
+
 async def _sync_legacy_locked_by(session: AsyncSession, ev: StreamEvent) -> None:
     r = await session.execute(
         select(StreamDayAssignment.operator_id)
@@ -563,6 +577,15 @@ async def lock_stream(
     else:
         target_operator_id = actor.id
 
+    if actor.role == UserRole.SUPERADMIN and assign_user_id is None:
+        if target_operator_id == actor.id and await _stream_has_assignments_to_other_than(
+            session, stream_event_id=ev.id, user_id=actor.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Дни назначены операторам — «взять в работу» с пульта суперадмином недоступен",
+            )
+
     want_days: list[int]
     if day_indices is None or len(day_indices) == 0:
         want_days = list(range(1, ev.duration_days + 1))
@@ -633,6 +656,11 @@ async def unlock_stream(session: AsyncSession, *, actor: User, stream_id: UUID) 
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
     prev = ev.locked_by_user_id
     if actor.role == UserRole.SUPERADMIN:
+        if await _stream_has_assignments_to_other_than(session, stream_event_id=ev.id, user_id=actor.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Дни назначены операторам — снять назначения может сам оператор",
+            )
         await session.execute(delete(StreamDayAssignment).where(StreamDayAssignment.stream_event_id == ev.id))
     else:
         cnt_r = await session.execute(
