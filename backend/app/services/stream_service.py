@@ -329,10 +329,40 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
             operator_id=b.operator_id,
             started_at=b.started_at,
             ended_at=b.ended_at,
-            is_active=b.ended_at is None,
+            is_active=True,
         )
         for b in ev.broadcast_sessions
         if b.ended_at is None
+    ]
+    ended_raw = [b for b in ev.broadcast_sessions if b.ended_at is not None]
+    ended_ids = [b.id for b in ended_raw]
+    mention_counts: dict[UUID, int] = {}
+    if ended_ids:
+        cr = await session.execute(
+            select(SponsorMention.broadcast_session_id, func.count())
+            .where(SponsorMention.broadcast_session_id.in_(ended_ids))
+            .group_by(SponsorMention.broadcast_session_id)
+        )
+        mention_counts = {row[0]: int(row[1]) for row in cr.all()}
+    ended_sorted = sorted(
+        ended_raw,
+        key=lambda b: (
+            b.day_index,
+            -(b.ended_at.timestamp() if b.ended_at else 0.0),
+        ),
+    )
+    ended_broadcasts = [
+        BroadcastSessionOut(
+            id=b.id,
+            stream_event_id=b.stream_event_id,
+            day_index=b.day_index,
+            operator_id=b.operator_id,
+            started_at=b.started_at,
+            ended_at=b.ended_at,
+            is_active=False,
+            mentions_count=mention_counts.get(b.id, 0),
+        )
+        for b in ended_sorted
     ]
     restart_blocked = await _broadcast_restart_blocked_days(
         session, stream_id=stream_id, duration_days=ev.duration_days
@@ -347,6 +377,7 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         day_assignments=day_assignments,
         days=[StreamDayOut.model_validate(d) for d in ev.days],
         active_broadcasts=active_broadcasts,
+        ended_broadcasts=ended_broadcasts,
         broadcast_restart_blocked_days=restart_blocked,
         content_url=ev.content_url,
         logos=_logos_for_stream(ev),
@@ -656,6 +687,10 @@ def _can_realign_broadcast_start(actor: User, ev: StreamEvent, session_operator_
     return False
 
 
+def _can_realign_ended_broadcast_manager(actor: User) -> bool:
+    return actor.role in (UserRole.SUPERADMIN, UserRole.STREAM_MANAGER)
+
+
 def _datetime_to_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=MOSCOW_TZ)
@@ -798,10 +833,34 @@ async def realign_broadcast_actual_start(
         )
     )
     bs = result.scalar_one_or_none()
+    if bs is None and _can_realign_ended_broadcast_manager(actor):
+        result_ended = await session.execute(
+            select(BroadcastSession)
+            .options(selectinload(BroadcastSession.mentions).selectinload(SponsorMention.adjustments))
+            .where(
+                and_(
+                    BroadcastSession.stream_event_id == stream_id,
+                    BroadcastSession.day_index == day_index,
+                    BroadcastSession.ended_at.isnot(None),
+                )
+            )
+            .order_by(BroadcastSession.ended_at.desc())
+            .limit(1)
+        )
+        bs = result_ended.scalar_one_or_none()
     if not bs:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Активный эфир не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Эфир для этого дня не найден (или уже завершён — правку завершённого может сделать менеджер)",
+        )
 
-    if not _can_realign_broadcast_start(actor, ev, bs.operator_id):
+    if bs.ended_at is not None:
+        if not _can_realign_ended_broadcast_manager(actor):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Правка времени начала завершённого эфира доступна менеджеру или суперадмину",
+            )
+    elif not _can_realign_broadcast_start(actor, ev, bs.operator_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
 
     new_started_utc = _datetime_to_utc(actual_started_at)
@@ -827,7 +886,7 @@ async def realign_broadcast_actual_start(
             operator_id=bs.operator_id,
             started_at=bs.started_at,
             ended_at=bs.ended_at,
-            is_active=True,
+            is_active=bs.ended_at is None,
         )
 
     mentions = list(bs.mentions)
@@ -877,7 +936,7 @@ async def realign_broadcast_actual_start(
         operator_id=bs.operator_id,
         started_at=bs.started_at,
         ended_at=bs.ended_at,
-        is_active=True,
+        is_active=bs.ended_at is None,
     )
 
 

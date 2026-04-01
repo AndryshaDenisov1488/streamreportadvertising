@@ -31,7 +31,7 @@ import {
 import type { UploadFile } from 'antd/es/upload/interface'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import type { LogoLibraryItemOut, SponsorMentionOut, StreamEventDetailOut } from '@/api/types'
@@ -266,6 +266,20 @@ export const ManagerStreamPage: React.FC = () => {
     window.open(String(v).trim(), '_blank', 'noopener,noreferrer')
   }
 
+  const endedLatestPerDay = useMemo(() => {
+    const list = data?.ended_broadcasts ?? []
+    const seen = new Set<number>()
+    const pick: typeof list = []
+    for (const b of list) {
+      if (seen.has(b.day_index)) {
+        continue
+      }
+      seen.add(b.day_index)
+      pick.push(b)
+    }
+    return pick.sort((a, b) => a.day_index - b.day_index)
+  }, [data?.ended_broadcasts])
+
   return (
     <AppLayout
       nav={
@@ -299,6 +313,38 @@ export const ManagerStreamPage: React.FC = () => {
               <div key={b.id}>
                 <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
                   День {b.day_index}
+                </Typography.Text>
+                <BroadcastActualStartPanel streamId={streamId} dayIndex={b.day_index} startedAtIso={b.started_at} />
+              </div>
+            ))}
+          </Space>
+        </Card>
+      ) : null}
+
+      {data && endedLatestPerDay.length > 0 ? (
+        <Card
+          size="small"
+          title="Завершённые эфиры — фактическое время начала"
+          style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
+          styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
+        >
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+            Доступно менеджеру и суперадмину: сдвиг времени старта так же сдвигает все таймкоды упоминаний этого эфира.
+            По каждому дню используется последний завершённый эфир.
+          </Typography.Paragraph>
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            {endedLatestPerDay.map((b) => (
+              <div key={b.id}>
+                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                  День {b.day_index}
+                  {b.mentions_count != null && b.mentions_count > 0 ? (
+                    <Typography.Text type="secondary">
+                      {' '}
+                      · упоминаний: {b.mentions_count}
+                    </Typography.Text>
+                  ) : (
+                    <Typography.Text type="secondary"> · упоминаний нет</Typography.Text>
+                  )}
                 </Typography.Text>
                 <BroadcastActualStartPanel streamId={streamId} dayIndex={b.day_index} startedAtIso={b.started_at} />
               </div>

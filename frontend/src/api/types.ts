@@ -94,6 +94,7 @@ export type BroadcastSessionOut = {
   started_at: string
   ended_at: string | null
   is_active: boolean
+  mentions_count?: number | null
 }
 
 export type BroadcastChecklistOut = {
@@ -134,6 +135,7 @@ export type StreamEventDetailOut = {
   day_assignments: DayAssignmentOut[]
   days: StreamDayOut[]
   active_broadcasts: BroadcastSessionOut[]
+  ended_broadcasts?: BroadcastSessionOut[]
   /** Дни без повторного старта после длинного эфира с таймкодами */
   broadcast_restart_blocked_days?: number[]
   /** С бэкенда v2+; при старых ответах может отсутствовать */

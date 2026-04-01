@@ -112,6 +112,8 @@ class BroadcastSessionOut(BaseModel):
     started_at: datetime
     ended_at: datetime | None
     is_active: bool
+    """Число упоминаний (только в деталке мероприятия для завершённых сессий)."""
+    mentions_count: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -127,6 +129,8 @@ class StreamEventDetailOut(BaseModel):
     """Назначения операторов по дням."""
     days: list[StreamDayOut]
     active_broadcasts: list[BroadcastSessionOut]
+    ended_broadcasts: list[BroadcastSessionOut] = []
+    """Завершённые эфиры (для сдвига фактического старта менеджером)."""
     broadcast_restart_blocked_days: list[int] = []
     """Дни, где после завершённого эфира >1 ч с таймкодами повторный «Начать эфир» недоступен."""
     content_url: str | None = None

@@ -51,7 +51,14 @@ async def get_mentions_report(
         )
     if conds:
         q = q.where(and_(*conds))
-    q = q.order_by(StreamEvent.start_date.asc(), SponsorMention.created_at.asc())
+    # Сначала турнир (дата старта, id), затем день эфира, затем порядок упоминаний — без перемешивания турниров
+    q = q.order_by(
+        StreamEvent.start_date.asc(),
+        StreamEvent.id.asc(),
+        BroadcastSession.day_index.asc(),
+        BroadcastSession.started_at.asc(),
+        SponsorMention.created_at.asc(),
+    )
     result = await session.execute(q)
     rows: list[ReportMentionRow] = []
     for m in result.scalars().all():
@@ -80,10 +87,14 @@ async def get_mentions_report(
 
 def build_docx_report(rows: list[ReportMentionRow]) -> bytes:
     doc = Document()
-    current_key: tuple[str, int, date] | None = None
+    rows_sorted = sorted(
+        rows,
+        key=lambda r: (r.stream_event_id, r.day_index, r.mention_created_at),
+    )
+    current_key: tuple[UUID, int] | None = None
     mention_idx = 0
-    for row in rows:
-        key = (row.stream_title, row.day_index, row.event_day_date)
+    for row in rows_sorted:
+        key = (row.stream_event_id, row.day_index)
         if key != current_key:
             if current_key is not None:
                 doc.add_paragraph("")
@@ -104,6 +115,7 @@ def build_docx_report(rows: list[ReportMentionRow]) -> bytes:
 
 
 def build_csv_report(rows: list[ReportMentionRow]) -> bytes:
+    rows_sorted = sorted(rows, key=lambda r: (r.stream_event_id, r.day_index, r.mention_created_at))
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(
@@ -117,7 +129,7 @@ def build_csv_report(rows: list[ReportMentionRow]) -> bytes:
             "mention_created_at",
         ]
     )
-    for row in rows:
+    for row in rows_sorted:
         w.writerow(
             [
                 row.stream_title,
@@ -133,6 +145,7 @@ def build_csv_report(rows: list[ReportMentionRow]) -> bytes:
 
 
 def build_xlsx_report(rows: list[ReportMentionRow]) -> bytes:
+    rows_sorted = sorted(rows, key=lambda r: (r.stream_event_id, r.day_index, r.mention_created_at))
     wb = Workbook()
     ws = wb.active
     ws.title = "mentions"
@@ -147,7 +160,7 @@ def build_xlsx_report(rows: list[ReportMentionRow]) -> bytes:
             "mention_created_at",
         ]
     )
-    for row in rows:
+    for row in rows_sorted:
         ws.append(
             [
                 row.stream_title,
