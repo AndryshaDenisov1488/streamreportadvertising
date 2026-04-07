@@ -255,6 +255,17 @@ export const OperatorEventPage: React.FC = () => {
     return false
   }, [latestEndedForSelectedDay, user?.role, user?.id])
 
+  /** Активный эфир — как раньше; после остановки — те же права, что у сдвига фактического старта */
+  const canEditMentionsForSelectedDay = useMemo(() => {
+    if (activeSession) {
+      if (foreignLock) {
+        return false
+      }
+      return iOperateThisDay
+    }
+    return canShowEndedRealignPanel
+  }, [activeSession, foreignLock, iOperateThisDay, canShowEndedRealignPanel])
+
   const canTakeLock = useMemo(() => {
     if (!data || !user) {
       return false
@@ -1067,7 +1078,7 @@ export const OperatorEventPage: React.FC = () => {
                         <Button
                           key="adj"
                           type={isComfortable ? 'link' : 'default'}
-                          disabled={foreignLock || !iOperateThisDay}
+                          disabled={!canEditMentionsForSelectedDay}
                           block={!isComfortable}
                           size={isComfortable ? 'middle' : 'large'}
                           onClick={() => {
@@ -1084,7 +1095,7 @@ export const OperatorEventPage: React.FC = () => {
                           danger
                           icon={<DeleteOutlined />}
                           type={isComfortable ? 'link' : 'default'}
-                          disabled={foreignLock || !iOperateThisDay || deleteMentionMut.isPending}
+                          disabled={!canEditMentionsForSelectedDay || deleteMentionMut.isPending}
                           block={!isComfortable}
                           size={isComfortable ? 'middle' : 'large'}
                           onClick={() => handleDeleteMention(item)}

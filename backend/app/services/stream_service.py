@@ -726,6 +726,12 @@ def _can_realign_ended_broadcast(actor: User, bs: BroadcastSession) -> bool:
     return False
 
 
+def _can_edit_mentions_on_broadcast_session(actor: User, ev: StreamEvent, bs: BroadcastSession) -> bool:
+    if bs.ended_at is None:
+        return _can_control_broadcast(actor, ev, bs.operator_id)
+    return _can_realign_ended_broadcast(actor, bs)
+
+
 def _datetime_to_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=MOSCOW_TZ)
@@ -925,20 +931,30 @@ async def realign_broadcast_actual_start(
         )
 
     mentions = list(bs.mentions)
+    latest_allowed_start_utc: datetime | None = None
     for m in mentions:
-        if m.original_offset_sec + delta_sec < 0 or m.adjusted_offset_sec + delta_sec < 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Указанное время приводит к отрицательным таймкодам. Задайте более раннее время начала эфира "
-                "(когда реально пошла картинка).",
-            )
+        # new_start <= old_start + offset_sec, иначе offset станет отрицательным
+        c1 = old_started + timedelta(seconds=m.original_offset_sec)
+        c2 = old_started + timedelta(seconds=m.adjusted_offset_sec)
+        cand = c1 if c1 <= c2 else c2
+        if latest_allowed_start_utc is None or cand < latest_allowed_start_utc:
+            latest_allowed_start_utc = cand
     for m in mentions:
         for adj in m.adjustments:
-            if adj.previous_adjusted_sec + delta_sec < 0 or adj.new_adjusted_sec + delta_sec < 0:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Указанное время несовместимо с историей правок. Задайте более раннее время начала эфира.",
-                )
+            c1 = old_started + timedelta(seconds=adj.previous_adjusted_sec)
+            c2 = old_started + timedelta(seconds=adj.new_adjusted_sec)
+            cand = c1 if c1 <= c2 else c2
+            if latest_allowed_start_utc is None or cand < latest_allowed_start_utc:
+                latest_allowed_start_utc = cand
+    if latest_allowed_start_utc is not None and new_started_utc > latest_allowed_start_utc:
+        latest_allowed_msk = format_moscow_datetime(latest_allowed_start_utc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Указанное время делает таймкоды отрицательными. "
+                f"Можно поставить старт не позже {latest_allowed_msk}."
+            ),
+        )
 
     for m in mentions:
         m.original_offset_sec += delta_sec
@@ -1042,9 +1058,7 @@ async def update_sponsor_mention(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Упоминание не найдено")
     bs = mention.broadcast_session
     ev = bs.stream_event
-    if bs.ended_at is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Эфир завершён")
-    if not _can_control_broadcast(actor, ev, bs.operator_id):
+    if not _can_edit_mentions_on_broadcast_session(actor, ev, bs):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
     prev = mention.adjusted_offset_sec
     if prev == new_adjusted_sec:
@@ -1097,9 +1111,7 @@ async def delete_sponsor_mention(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Упоминание не найдено")
     bs = mention.broadcast_session
     ev = bs.stream_event
-    if bs.ended_at is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Эфир завершён")
-    if not _can_control_broadcast(actor, ev, bs.operator_id):
+    if not _can_edit_mentions_on_broadcast_session(actor, ev, bs):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
 
     stream_event_id = bs.stream_event_id
