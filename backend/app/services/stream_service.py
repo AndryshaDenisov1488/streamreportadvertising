@@ -1081,6 +1081,48 @@ async def update_sponsor_mention(
     return _mention_to_out(mention)
 
 
+async def delete_sponsor_mention(
+    session: AsyncSession,
+    *,
+    actor: User,
+    mention_id: UUID,
+) -> UUID:
+    result = await session.execute(
+        select(SponsorMention)
+        .options(selectinload(SponsorMention.broadcast_session).selectinload(BroadcastSession.stream_event))
+        .where(SponsorMention.id == mention_id)
+    )
+    mention = result.scalar_one_or_none()
+    if not mention:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Упоминание не найдено")
+    bs = mention.broadcast_session
+    ev = bs.stream_event
+    if bs.ended_at is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Эфир завершён")
+    if not _can_control_broadcast(actor, ev, bs.operator_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+
+    stream_event_id = bs.stream_event_id
+    mention_id_str = str(mention.id)
+    before = {
+        "broadcast_session_id": str(mention.broadcast_session_id),
+        "original_offset_sec": mention.original_offset_sec,
+        "adjusted_offset_sec": mention.adjusted_offset_sec,
+    }
+    await session.delete(mention)
+    await write_audit(
+        session,
+        user_id=actor.id,
+        action_type=AuditActionType.MENTION_UPDATE,
+        entity_type="sponsor_mention",
+        entity_id=mention_id_str,
+        payload_before=before,
+        payload_after=None,
+    )
+    await session.commit()
+    return stream_event_id
+
+
 async def list_mentions_for_event_day(
     session: AsyncSession,
     *,

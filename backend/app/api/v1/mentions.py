@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,3 +55,19 @@ async def patch_mention(
         {"type": "mention_updated", "payload": out.model_dump(mode="json")},
     )
     return out
+
+
+@router.delete("/sponsor-mentions/{mention_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_mention(
+    mention_id: UUID,
+    request: Request,
+    actor: OperatorOrAbove,
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    stream_event_id = await stream_service.delete_sponsor_mention(session, actor=actor, mention_id=mention_id)
+    hub: StreamEventHub = request.app.state.ws_hub
+    await hub.publish(
+        stream_event_id,
+        {"type": "mention_deleted", "payload": {"mention_id": str(mention_id)}},
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

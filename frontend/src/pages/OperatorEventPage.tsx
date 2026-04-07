@@ -2,6 +2,7 @@ import {
   ArrowLeftOutlined,
   CheckOutlined,
   CopyOutlined,
+  DeleteOutlined,
   DownloadOutlined,
   FileZipOutlined,
   LinkOutlined,
@@ -416,6 +417,17 @@ export const OperatorEventPage: React.FC = () => {
     onError: (e: Error) => message.error(e.message),
   })
 
+  const deleteMentionMut = useMutation({
+    mutationFn: async (mentionId: string) => {
+      await apiFetch(`/sponsor-mentions/${mentionId}`, { method: 'DELETE' })
+    },
+    onSuccess: async () => {
+      message.success('Упоминание удалено')
+      await qc.invalidateQueries({ queryKey: ['mentions', streamId, day] })
+    },
+    onError: (e: Error) => message.error(e.message),
+  })
+
   const handleAddMention = () => {
     if (!activeSession) {
       message.warning('Сначала начните эфир')
@@ -430,6 +442,19 @@ export const OperatorEventPage: React.FC = () => {
       return
     }
     mentionMut.mutate(activeSession.id)
+  }
+
+  const handleDeleteMention = (mention: SponsorMentionOut) => {
+    modal.confirm({
+      title: 'Удалить упоминание?',
+      content: `Это действие удалит отметку ${mention.adjusted_timecode} и историю её корректировок. Продолжить?`,
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        await deleteMentionMut.mutateAsync(mention.id)
+      },
+    })
   }
 
   const handleStart = () => {
@@ -1053,6 +1078,18 @@ export const OperatorEventPage: React.FC = () => {
                           }}
                         >
                           Корректировка
+                        </Button>,
+                        <Button
+                          key="delete"
+                          danger
+                          icon={<DeleteOutlined />}
+                          type={isComfortable ? 'link' : 'default'}
+                          disabled={foreignLock || !iOperateThisDay || deleteMentionMut.isPending}
+                          block={!isComfortable}
+                          size={isComfortable ? 'middle' : 'large'}
+                          onClick={() => handleDeleteMention(item)}
+                        >
+                          Удалить
                         </Button>,
                       ]}
                     >
