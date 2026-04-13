@@ -98,6 +98,7 @@ class StreamEventListOut(BaseModel):
     """Для текущего пользователя: есть ли свободные дни или уже свои назначения."""
     has_active_broadcast: bool
     has_ended_broadcast: bool = False
+    ended_day_indices: list[int] = []
     created_at: datetime
     day_stream_links: list[StreamDayLinkOut] = []
     """По дням: ссылки на трансляцию (копирование из списка)."""

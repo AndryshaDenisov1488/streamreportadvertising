@@ -259,6 +259,20 @@ async def _ended_broadcast_ids(session: AsyncSession) -> set[UUID]:
     return set(result.scalars().all())
 
 
+async def _ended_broadcast_days_by_event(session: AsyncSession) -> dict[UUID, list[int]]:
+    q = (
+        select(BroadcastSession.stream_event_id, BroadcastSession.day_index)
+        .where(BroadcastSession.ended_at.isnot(None))
+        .distinct()
+        .order_by(BroadcastSession.stream_event_id, BroadcastSession.day_index)
+    )
+    result = await session.execute(q)
+    out: dict[UUID, list[int]] = defaultdict(list)
+    for stream_event_id, day_index in result.all():
+        out[stream_event_id].append(day_index)
+    return out
+
+
 async def _users_by_ids(session: AsyncSession, user_ids: set[UUID]) -> dict[UUID, User]:
     if not user_ids:
         return {}
@@ -281,6 +295,7 @@ async def list_stream_events(
 ) -> list[StreamEventListOut]:
     active_ids = await _active_broadcast_ids(session)
     ended_ids = await _ended_broadcast_ids(session)
+    ended_days_by_event = await _ended_broadcast_days_by_event(session)
     result = await session.execute(select(StreamEvent).order_by(StreamEvent.start_date.desc(), StreamEvent.created_at.desc()))
     events = list(result.scalars().all())
     eids = [e.id for e in events]
@@ -331,6 +346,7 @@ async def list_stream_events(
                 has_slot_for_me=has_slot,
                 has_active_broadcast=ev.id in active_ids,
                 has_ended_broadcast=ev.id in ended_ids,
+                ended_day_indices=ended_days_by_event.get(ev.id, []),
                 created_at=ev.created_at,
                 day_stream_links=day_links,
             )

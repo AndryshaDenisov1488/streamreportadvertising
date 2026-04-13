@@ -74,6 +74,7 @@ export type StreamEventListOut = {
   has_slot_for_me: boolean
   has_active_broadcast: boolean
   has_ended_broadcast?: boolean
+  ended_day_indices?: number[]
   created_at: string
   /** Ссылки на трансляцию по дням (список мероприятий) */
   day_stream_links?: StreamDayLinkOut[]

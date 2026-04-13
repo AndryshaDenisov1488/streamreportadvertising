@@ -8,6 +8,18 @@ import type { StreamEventListOut } from '@/api/types'
 import { apiFetch } from '@/api/client'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
+
+const endedDaysStatusLabel = (dayIndices: number[] | undefined) => {
+  const list = (dayIndices ?? []).filter((d) => Number.isInteger(d)).sort((a, b) => a - b)
+  if (list.length === 0) {
+    return 'Есть завершенные эфиры'
+  }
+  if (list.length === 1) {
+    return `Завершен день ${list[0]}`
+  }
+  return `Завершены дни ${list.join(', ')}`
+}
+
 export const OperatorHomePage: React.FC = () => {
   const { message } = AntApp.useApp()
 
@@ -89,7 +101,7 @@ export const OperatorHomePage: React.FC = () => {
                         {ev.has_active_broadcast ? (
                           <Tag color="green">Эфир</Tag>
                         ) : ev.has_ended_broadcast ? (
-                          <Tag color="orange">Есть завершенные эфиры</Tag>
+                          <Tag color="orange">{endedDaysStatusLabel(ev.ended_day_indices)}</Tag>
                         ) : (
                           <Tag>Нет эфира</Tag>
                         )}
