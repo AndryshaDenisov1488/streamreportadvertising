@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.core.config import get_settings
+from app.services.broadcast_alert_service import job_long_broadcast_alerts
 from app.services.email_report_service import job_monthly_report, job_weekly_report
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,14 @@ def setup_report_scheduler() -> AsyncIOScheduler | None:
         id="monthly_report",
         replace_existing=True,
     )
+    sched.add_job(
+        job_long_broadcast_alerts,
+        CronTrigger(minute="*/10"),
+        id="long_broadcast_alerts",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
     sched.start()
-    logger.info("Планировщик отчётов SMTP запущен (пн 00:05, 1-е 00:10 МСК)")
+    logger.info("Планировщик SMTP запущен (отчёты + проверка длительных эфиров каждые 10 минут)")
     return sched

@@ -104,6 +104,7 @@ class BroadcastSession(Base):
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_alert_last_sent_hour: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
 
     stream_event: Mapped["StreamEvent"] = relationship("StreamEvent", back_populates="broadcast_sessions")
     mentions: Mapped[list["SponsorMention"]] = relationship(

@@ -89,7 +89,7 @@ export const OperatorHomePage: React.FC = () => {
                         {ev.has_active_broadcast ? (
                           <Tag color="green">Эфир</Tag>
                         ) : ev.has_ended_broadcast ? (
-                          <Tag color="orange">Эфир завершен</Tag>
+                          <Tag color="orange">Есть завершенные эфиры</Tag>
                         ) : (
                           <Tag>Нет эфира</Tag>
                         )}
