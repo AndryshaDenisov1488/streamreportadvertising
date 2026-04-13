@@ -22,6 +22,22 @@ export const OperatorHomePage: React.FC = () => {
     }
   }
 
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const rangeStart = new Date(todayStart)
+  rangeStart.setDate(rangeStart.getDate() - 3)
+  const rangeEnd = new Date(todayStart)
+  rangeEnd.setDate(rangeEnd.getDate() + 7)
+  rangeEnd.setHours(23, 59, 59, 999)
+
+  const visibleEvents = (data ?? []).filter((ev) => {
+    const eventStart = new Date(`${ev.start_date}T00:00:00`)
+    const eventEnd = new Date(eventStart)
+    eventEnd.setDate(eventEnd.getDate() + ev.duration_days - 1)
+    eventEnd.setHours(23, 59, 59, 999)
+    return eventEnd >= rangeStart && eventStart <= rangeEnd
+  })
+
   return (
     <AppLayout
       nav={
@@ -36,11 +52,11 @@ export const OperatorHomePage: React.FC = () => {
       <Typography.Paragraph type="secondary">
         Выберите мероприятие. Можно взять свободные дни турнира; если все дни заняты — карточка приглушена.
       </Typography.Paragraph>
-      {!isLoading && (!data || data.length === 0) ? (
+      {!isLoading && visibleEvents.length === 0 ? (
         <Empty description="Нет мероприятий" />
       ) : (
         <Row gutter={[16, 16]}>
-          {(data ?? []).map((ev) => {
+          {visibleEvents.map((ev) => {
             const blocked = ev.has_slot_for_me === false
             return (
               <Col xs={24} md={12} lg={8} key={ev.id}>
@@ -70,7 +86,13 @@ export const OperatorHomePage: React.FC = () => {
                         Старт: {formatDateRu(ev.start_date)} · {ev.duration_days} дн.
                       </Typography.Text>
                       <Space wrap>
-                        {ev.has_active_broadcast ? <Tag color="green">Эфир</Tag> : <Tag>Нет эфира</Tag>}
+                        {ev.has_active_broadcast ? (
+                          <Tag color="green">Эфир</Tag>
+                        ) : ev.has_ended_broadcast ? (
+                          <Tag color="orange">Эфир завершен</Tag>
+                        ) : (
+                          <Tag>Нет эфира</Tag>
+                        )}
                         {blocked ? (
                           <Tag color="red">Нет свободных дней</Tag>
                         ) : ev.assignment_summary ? (

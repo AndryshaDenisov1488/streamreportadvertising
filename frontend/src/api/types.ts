@@ -73,6 +73,7 @@ export type StreamEventListOut = {
   assignment_summary: string | null
   has_slot_for_me: boolean
   has_active_broadcast: boolean
+  has_ended_broadcast?: boolean
   created_at: string
   /** Ссылки на трансляцию по дням (список мероприятий) */
   day_stream_links?: StreamDayLinkOut[]
