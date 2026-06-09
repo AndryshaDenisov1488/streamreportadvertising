@@ -1264,8 +1264,18 @@ export const OperatorEventPage: React.FC = () => {
             backdropFilter: 'blur(6px)',
           }}
         >
-          <div style={{ maxWidth: 440, textAlign: 'center' }}>
-            <Typography.Title level={3} id="idle-reminder-title" style={{ color: '#0f172a' }}>
+          <div
+            style={{
+              maxWidth: 440,
+              width: '100%',
+              textAlign: 'center',
+              background: '#ffffff',
+              borderRadius: 10,
+              padding: '28px 24px',
+              boxShadow: '0 20px 48px rgba(0, 0, 0, 0.35)',
+            }}
+          >
+            <Typography.Title level={3} id="idle-reminder-title" style={{ color: '#0f172a', marginTop: 0 }}>
               Не забудьте про напоминалки
             </Typography.Title>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 24, fontSize: 15 }}>
