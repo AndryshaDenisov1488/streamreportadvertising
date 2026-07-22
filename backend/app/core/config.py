@@ -1,6 +1,46 @@
 from functools import lru_cache
+import os
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Known-weak placeholders — never accept these as live JWT signing secrets
+_WEAK_JWT_PLACEHOLDERS = frozenset({
+    "change-me",
+    "changeme",
+    "secret",
+    "password",
+    "jwt-secret",
+    "jwt_secret",
+    "change-me-in-production-use-long-random",
+    "change-me-to-a-long-random-string-in-production",
+    "your-secret-key",
+    "your-secret-key-change-in-production",
+})
+
+_MIN_JWT_SECRET_LEN_NON_DEV = 32
+
+
+def is_explicit_development_mode() -> bool:
+    """True only when ENVIRONMENT / APP_ENV / SENTRY_ENVIRONMENT is an explicit non-prod label."""
+    env = (
+        os.getenv("ENVIRONMENT")
+        or os.getenv("APP_ENV")
+        or os.getenv("SENTRY_ENVIRONMENT")
+        or ""
+    ).strip().lower()
+    return env in {"development", "dev", "local", "test"}
+
+
+def is_weak_jwt_placeholder(secret: str) -> bool:
+    normalized = secret.strip().lower()
+    if not normalized:
+        return True
+    if normalized in _WEAK_JWT_PLACEHOLDERS:
+        return True
+    if normalized.startswith("change-me"):
+        return True
+    return False
 
 
 class Settings(BaseSettings):
@@ -9,7 +49,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://streaming:streaming@localhost:5432/streaming"
     database_url_sync: str = "postgresql://streaming:streaming@localhost:5432/streaming"
 
-    jwt_secret: str = "change-me"
+    # Required from env — no code default (SEC-AUTH-004)
+    jwt_secret: str
     jwt_algorithm: str = "HS256"
     jwt_access_expire_minutes: int = 30
     jwt_refresh_expire_days: int = 7
@@ -51,6 +92,39 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     # True — порт 465 (implicit SSL). False — обычный SMTP + STARTTLS (например 587)
     smtp_use_ssl: bool = False
+
+    @field_validator("jwt_secret", mode="before")
+    @classmethod
+    def _strip_jwt_secret(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @model_validator(mode="after")
+    def _validate_jwt_secret(self) -> "Settings":
+        """Fail-fast: reject empty / placeholder JWT secrets; enforce length outside development."""
+        secret = self.jwt_secret
+        if not secret:
+            raise ValueError(
+                "JWT_SECRET must be set to a non-empty value "
+                "(no default is provided). Set it in the environment or .env."
+            )
+
+        # Placeholders always rejected (even in development) — finding class change-me/secret
+        if is_weak_jwt_placeholder(secret):
+            raise ValueError(
+                "JWT_SECRET must not be a known weak placeholder "
+                "(change-me, secret, …). Generate a long random value."
+            )
+
+        # Length relaxed only under explicit development|dev|local|test
+        if len(secret) < _MIN_JWT_SECRET_LEN_NON_DEV and not is_explicit_development_mode():
+            raise ValueError(
+                f"JWT_SECRET must be at least {_MIN_JWT_SECRET_LEN_NON_DEV} characters "
+                "outside development. Set ENVIRONMENT=development|test for local short secrets only."
+            )
+
+        return self
 
     @property
     def cors_origins_list(self) -> list[str]:
