@@ -397,7 +397,8 @@ curl -s http://127.0.0.1:<port>/health
 - **HTTPS:** `streaming.mainstreamfs.ru`.
 - Nginx `/etc/nginx/sites-available/streaming.conf`:
   - `/` → `try_files` в `frontend/dist`;
-  - `/api/`, `/health`, `/openapi.json`, `/uploads/` → backend **8010**;
+  - `/api/`, `/health`, `/openapi.json` → backend **8010**;
+  - `/uploads/` → **deny** (404); media via `/api/v1/media/...` (signed URL or Bearer);
   - длинный `proxy_read_timeout` для WebSocket.
 
 ## Связь с MainStream Shop
