@@ -454,6 +454,19 @@ Prometheus exporters на сервере: node_exporter, nginx_exporter, postgre
 
 mainstreamfs.ru
 
+### Outbound stream webhook (optional)
+
+When `EXTERNAL_WEBHOOK_URL` is set, the backend POSTs JSON `{ "type", "payload" }` on broadcast start/stop.
+
+| Item | Value |
+|------|-------|
+| Secret env | `EXTERNAL_WEBHOOK_SECRET` (required if URL is set; generate e.g. `openssl rand -hex 32`) |
+| Signature header | `X-Webhook-Signature` |
+| Algorithm | HMAC-SHA256 over the **exact** raw request body bytes |
+| Header format | `sha256=<hex digest>` |
+
+Consumers must recompute HMAC over the raw body and compare with `hmac.compare_digest`. Unsigned deliveries are not sent (URL without secret fails at Settings boot).
+
 ---
 
 ## Документация

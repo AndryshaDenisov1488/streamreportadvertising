@@ -79,6 +79,8 @@ class Settings(BaseSettings):
 
     # Опционально: POST JSON при событиях эфира (начало/конец)
     external_webhook_url: str = ""
+    # HMAC-SHA256 shared secret for X-Webhook-Signature (required when URL is set)
+    external_webhook_secret: str = ""
 
     # Дни хранения журнала аудита (0 = не удалять; фоновые задачи — вне HTTP)
     audit_retention_days: int = 0
@@ -124,6 +126,20 @@ class Settings(BaseSettings):
                 "outside development. Set ENVIRONMENT=development|test for local short secrets only."
             )
 
+        return self
+
+    @model_validator(mode="after")
+    def _validate_external_webhook_secret(self) -> "Settings":
+        """Fail-closed (SEC-WH-004): URL without signing secret is rejected at boot."""
+        url = (self.external_webhook_url or "").strip()
+        if not url:
+            return self
+        secret = (self.external_webhook_secret or "").strip()
+        if not secret:
+            raise ValueError(
+                "EXTERNAL_WEBHOOK_SECRET must be set when EXTERNAL_WEBHOOK_URL is configured. "
+                "Outbound webhooks are HMAC-SHA256 signed (header X-Webhook-Signature)."
+            )
         return self
 
     @property
