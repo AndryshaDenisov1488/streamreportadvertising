@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.timezone import MOSCOW_TZ, add_seconds_to_start, format_moscow_datetime, utc_now
+from app.core.media_urls import build_signed_media_url_from_stored
 from app.models.enums import AuditActionType, UserRole
 from app.models.logo import StreamEventLogo
 from app.models.stream import (
@@ -92,7 +93,7 @@ def _logos_for_stream(ev: StreamEvent) -> list[StreamLogoItemOut]:
         lg = link.logo
         if not lg:
             continue
-        pub = f"/uploads/{lg.stored_path.lstrip('/')}"
+        pub = build_signed_media_url_from_stored(lg.stored_path) or ""
         items.append(
             StreamLogoItemOut(
                 id=lg.id,

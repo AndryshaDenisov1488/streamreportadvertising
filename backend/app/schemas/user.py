@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import Self
 
-from pydantic import BaseModel, EmailStr, Field, computed_field
+from pydantic import BaseModel, EmailStr, Field, computed_field, model_validator
 
+from app.core.media_urls import build_signed_media_url_from_stored
 from app.models.enums import UserRole
 
 
@@ -23,6 +25,16 @@ class UserOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _sign_avatar_url(self) -> Self:
+        """Emit signed /api/v1/media/... URL for stored avatar object keys (SEC-MEDIA-004)."""
+        if not self.avatar_url:
+            return self
+        signed = build_signed_media_url_from_stored(self.avatar_url)
+        if signed:
+            object.__setattr__(self, "avatar_url", signed)
+        return self
 
     @computed_field
     @property

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
+from app.core.media_urls import build_signed_media_url_from_stored
 from app.core.timezone import format_moscow_date
 from app.models.enums import AuditActionType
 from app.models.logo import Logo, StreamEventLogo
@@ -21,13 +22,14 @@ from app.schemas.logo import LogoLibraryItemOut
 from app.services.audit_service import write_audit
 from app.services.stream_service import _get_event
 
+# SEC-MEDIA-005: SVG disallowed (stored XSS when served on app origin)
 ALLOWED_LOGO_TYPES = {
     "image/png",
     "image/jpeg",
     "image/gif",
     "image/webp",
-    "image/svg+xml",
 }
+FORBIDDEN_LOGO_EXTENSIONS = frozenset({".svg", ".svgz"})
 MAX_LOGO_BYTES = 15 * 1024 * 1024
 
 
@@ -39,8 +41,29 @@ def _safe_original_filename(name: str) -> str:
     return base[:240] if len(base) > 240 else base
 
 
+def assert_logo_upload_allowed(*, content_type: str, filename: str) -> None:
+    """Reject disallowed types / SVG by MIME or extension (SEC-MEDIA-005)."""
+    ct = (content_type or "").split(";")[0].strip().lower()
+    if ct == "image/svg+xml" or (ct.endswith("+xml") and "svg" in ct):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SVG не допускается",
+        )
+    ext = Path(filename or "").suffix.lower()
+    if ext in FORBIDDEN_LOGO_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SVG не допускается",
+        )
+    if ct not in ALLOWED_LOGO_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Допустимы только PNG, JPEG, GIF, WebP",
+        )
+
+
 def logo_library_item(logo: Logo) -> LogoLibraryItemOut:
-    pub = f"/uploads/{logo.stored_path.lstrip('/')}"
+    pub = build_signed_media_url_from_stored(logo.stored_path) or ""
     return LogoLibraryItemOut(
         id=logo.id,
         filename_original=logo.filename_original,
@@ -51,17 +74,19 @@ def logo_library_item(logo: Logo) -> LogoLibraryItemOut:
 
 
 async def _persist_one_logo(session: AsyncSession, *, actor: User, file: UploadFile) -> Logo:
-    ct = file.content_type or ""
-    if ct not in ALLOWED_LOGO_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Допустимы только PNG, JPEG, GIF, WebP, SVG",
-        )
     raw_name = file.filename or "logo"
+    assert_logo_upload_allowed(content_type=file.content_type or "", filename=raw_name)
     filename_original = _safe_original_filename(raw_name)
     data = await file.read()
     if len(data) > MAX_LOGO_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Файл больше 15 МБ")
+
+    # Defense in depth: sniff SVG payload even if MIME/extension were spoofed
+    head = data[:256].lstrip().lower()
+    if head.startswith(b"<?xml") and b"<svg" in data[:2048].lower():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SVG не допускается")
+    if head.startswith(b"<svg"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SVG не допускается")
 
     settings = get_settings()
     logo = Logo(

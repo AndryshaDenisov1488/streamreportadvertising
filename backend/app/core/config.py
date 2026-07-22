@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
 
     upload_dir: str = "uploads"
+    # TTL for HMAC-signed logo/avatar URLs (SEC-MEDIA-004)
+    media_signed_url_ttl_seconds: int = 3600
 
     app_version: str = "1.0.0"
 

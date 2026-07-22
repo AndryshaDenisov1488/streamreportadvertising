@@ -3,7 +3,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -57,9 +56,10 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+    # SEC-MEDIA-004: do not mount public StaticFiles for /uploads.
+    # Logos/avatars are served via /api/v1/media/... (signed URL or Bearer auth).
     upload_root = Path(settings.upload_dir)
     upload_root.mkdir(parents=True, exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory=str(upload_root)), name="uploads")
     return app
 
 

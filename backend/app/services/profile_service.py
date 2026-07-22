@@ -73,7 +73,8 @@ async def save_avatar_file(
     if len(data) > 2 * 1024 * 1024:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Файл больше 2 МБ")
     dest.write_bytes(data)
-    public_path = f"/uploads/avatars/{user_id}{ext}"
+    # Store relative object key (not public /uploads URL) — SEC-MEDIA-004
+    public_path = f"avatars/{user_id}{ext}"
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
