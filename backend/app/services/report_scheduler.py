@@ -1,4 +1,8 @@
-"""Планировщик: пн 00:05 и 1-е число 00:10 (МСК) — отчёты на почту."""
+"""Планировщик: пн 00:05 и 1-е число 00:10 (МСК) — отчёты на почту.
+
+При нескольких uvicorn workers каждый worker поднимает свой APScheduler;
+исполнение job_* защищено PostgreSQL advisory lock (см. background_lock).
+"""
 
 import logging
 from zoneinfo import ZoneInfo

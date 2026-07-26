@@ -14,6 +14,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/streaming/backend
 EnvironmentFile=/opt/streaming/backend/.env
+# workers>1 допустим: фоновые задачи (SMTP, ffkm sync) защищены PostgreSQL advisory lock
 ExecStart=/opt/streaming/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010 --workers 2
 Restart=on-failure
 RestartSec=5

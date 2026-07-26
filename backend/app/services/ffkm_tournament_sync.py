@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.stream import StreamDay, StreamEvent
+from app.services.background_lock import LOCK_FFKM_SYNC, run_if_leader
 from app.services.ffkm_admin_client import FfkmAdminClient, FfkmAdminClientError
 
 logger = logging.getLogger(__name__)
@@ -389,8 +390,13 @@ async def ffkm_tournament_sync_loop() -> None:
     await asyncio.sleep(delay)
     while True:
         try:
-            result = await job_ffkm_tournament_sync()
-            logger.info("ffkm tournament sync loop tick: %s", result)
+
+            async def _tick() -> dict[str, Any]:
+                return await job_ffkm_tournament_sync()
+
+            result = await run_if_leader(LOCK_FFKM_SYNC, _tick)
+            if result is not None:
+                logger.info("ffkm tournament sync loop tick: %s", result)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001
