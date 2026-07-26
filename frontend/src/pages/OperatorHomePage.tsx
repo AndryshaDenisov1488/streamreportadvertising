@@ -6,14 +6,21 @@ import { Link } from 'react-router-dom'
 
 import type { StreamEventListOut } from '@/api/types'
 import { apiFetch } from '@/api/client'
-import { StreamEventsFilterBar, type StreamRangePreset } from '@/components/StreamEventsFilterBar'
+import { StreamEventsFilterBar } from '@/components/StreamEventsFilterBar'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
 import {
-  defaultManagerRange,
+  categoryLabel,
   filterStreamEvents,
+  inferStreamCategory,
   type StreamCategory,
 } from '@/utils/streamEventFilters'
+import {
+  currentSeasonYear,
+  rangeForSeasonFilter,
+  seasonsFromEvents,
+  type SeasonFilter,
+} from '@/utils/season'
 
 const endedDaysStatusLabel = (dayIndices: number[] | undefined) => {
   const list = (dayIndices ?? []).filter((d) => Number.isInteger(d)).sort((a, b) => a - b)
@@ -28,14 +35,20 @@ const endedDaysStatusLabel = (dayIndices: number[] | undefined) => {
 
 export const OperatorHomePage: React.FC = () => {
   const { message } = AntApp.useApp()
-  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => defaultManagerRange())
-  const [rangePreset, setRangePreset] = useState<StreamRangePreset>('month')
+  const [seasonFilter, setSeasonFilter] = useState<SeasonFilter>(() => currentSeasonYear())
   const [category, setCategory] = useState<StreamCategory>('all')
 
   const { data, isLoading } = useQuery({
     queryKey: ['streams'],
     queryFn: async () => (await apiFetch('/stream-events')) as StreamEventListOut[],
   })
+
+  const seasonsAvailable = useMemo(
+    () => seasonsFromEvents((data ?? []).map((ev) => ev.start_date)),
+    [data],
+  )
+
+  const range = useMemo(() => rangeForSeasonFilter(seasonFilter), [seasonFilter])
 
   const visibleEvents = useMemo(
     () =>
@@ -70,12 +83,11 @@ export const OperatorHomePage: React.FC = () => {
       </Typography.Paragraph>
 
       <StreamEventsFilterBar
-        range={range}
-        onRangeChange={setRange}
+        seasonFilter={seasonFilter}
+        onSeasonFilterChange={setSeasonFilter}
+        seasonsAvailable={seasonsAvailable}
         category={category}
         onCategoryChange={setCategory}
-        preset={rangePreset}
-        onPresetChange={setRangePreset}
         resultCount={visibleEvents.length}
       />
 

@@ -561,10 +561,15 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
     await session.commit()
     detail = await get_stream_event_detail(session, stream_id)
     after_urls = {(d.day_index, (d.stream_url or "").strip()) for d in detail.days}
-    if before_urls != after_urls and detail.ffkm_admin_tournament_id is not None:
+    if before_urls != after_urls:
+        from app.services.ffkm_tournament_sync import ensure_ffkm_link_for_stream
         from app.services.ffkm_stream_push import push_stream_urls_to_ffkm_admin
 
-        await push_stream_urls_to_ffkm_admin(session, stream_id)
+        await ensure_ffkm_link_for_stream(session, stream_id)
+        await session.commit()
+        detail = await get_stream_event_detail(session, stream_id)
+        if detail.ffkm_admin_tournament_id is not None:
+            await push_stream_urls_to_ffkm_admin(session, stream_id)
     return detail
 
 

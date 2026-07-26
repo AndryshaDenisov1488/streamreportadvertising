@@ -39,16 +39,21 @@ import {
 } from '@/api/client'
 import { ManagerOverviewPanel } from '@/components/ManagerOverviewPanel'
 import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
-import { StreamEventsFilterBar, type StreamRangePreset } from '@/components/StreamEventsFilterBar'
+import { StreamEventsFilterBar } from '@/components/StreamEventsFilterBar'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
 import {
   categoryLabel,
-  defaultManagerRange,
   filterStreamEvents,
   inferStreamCategory,
   type StreamCategory,
 } from '@/utils/streamEventFilters'
+import {
+  currentSeasonYear,
+  rangeForSeasonFilter,
+  seasonsFromEvents,
+  type SeasonFilter,
+} from '@/utils/season'
 
 dayjs.locale('ru')
 
@@ -84,8 +89,7 @@ export const ManagerStreamsPage: React.FC = () => {
   const [reportForm] = Form.useForm()
   const [tplNameForm] = Form.useForm()
   const [instantiateForm] = Form.useForm()
-  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => defaultManagerRange())
-  const [rangePreset, setRangePreset] = useState<StreamRangePreset>('month')
+  const [seasonFilter, setSeasonFilter] = useState<SeasonFilter>(() => currentSeasonYear())
   const [category, setCategory] = useState<StreamCategory>('official_sports_significant')
 
   const { data, isLoading } = useQuery({
@@ -103,7 +107,7 @@ export const ManagerStreamsPage: React.FC = () => {
       (await apiFetch('/stream-events/sync/ffkm-admin', { method: 'POST' })) as FfkmAdminSyncResult,
     onSuccess: async (r) => {
       message.success(
-        `Синхронизация ffkm-admin: создано ${r.created}, обновлено ${r.updated} (из ${r.kept} подходящих)`,
+        `ffkm-admin: создано ${r.created}, обновлено ${r.updated}, привязано вручную ${r.linked_manual ?? 0}, ссылки отправлены ${r.pushed_urls ?? 0}/${r.push_attempted ?? 0}`,
       )
       if (r.errors?.length) {
         message.warning(`Ошибки: ${r.errors.slice(0, 3).join('; ')}`)
@@ -228,6 +232,13 @@ export const ManagerStreamsPage: React.FC = () => {
     },
     onError: (e: Error) => message.error(e.message),
   })
+
+  const seasonsAvailable = useMemo(
+    () => seasonsFromEvents((data ?? []).map((ev) => ev.start_date)),
+    [data],
+  )
+
+  const range = useMemo(() => rangeForSeasonFilter(seasonFilter), [seasonFilter])
 
   const filteredEvents = useMemo(
     () =>
@@ -506,12 +517,11 @@ export const ManagerStreamsPage: React.FC = () => {
       </Space>
 
       <StreamEventsFilterBar
-        range={range}
-        onRangeChange={setRange}
+        seasonFilter={seasonFilter}
+        onSeasonFilterChange={setSeasonFilter}
+        seasonsAvailable={seasonsAvailable}
         category={category}
         onCategoryChange={setCategory}
-        preset={rangePreset}
-        onPresetChange={setRangePreset}
         resultCount={filteredEvents.length}
       />
 
@@ -524,7 +534,7 @@ export const ManagerStreamsPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
           scroll={{ x: 1000 }}
           size={isNarrow ? 'small' : 'middle'}
-          locale={{ emptyText: 'Нет мероприятий в выбранном периоде' }}
+          locale={{ emptyText: 'Нет мероприятий в выбранном сезоне' }}
         />
       </Card>
 

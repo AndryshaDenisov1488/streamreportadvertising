@@ -37,6 +37,9 @@ class SyncStats:
     skipped_physical: int = 0
     skipped_before_from_date: int = 0
     skipped_rank: int = 0
+    linked_manual: int = 0
+    push_attempted: int = 0
+    pushed_urls: int = 0
     errors: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
@@ -48,6 +51,9 @@ class SyncStats:
             "skipped_physical": self.skipped_physical,
             "skipped_before_from_date": self.skipped_before_from_date,
             "skipped_rank": self.skipped_rank,
+            "linked_manual": self.linked_manual,
+            "push_attempted": self.push_attempted,
+            "pushed_urls": self.pushed_urls,
             "errors": list(self.errors),
         }
 
@@ -98,6 +104,125 @@ def duration_from_dates(start: date, end: date | None) -> int:
         return 1
     days = (end - start).days + 1
     return max(1, min(MAX_DURATION_DAYS, days))
+
+
+def normalize_title_for_match(title: str) -> str:
+    import re
+
+    text = (title or "").lower().strip()
+    text = re.sub(r"[^\w\s«»\"'\-]", " ", text, flags=re.UNICODE)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def titles_match(left: str, right: str) -> bool:
+    a = normalize_title_for_match(left)
+    b = normalize_title_for_match(right)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    if a in b or b in a:
+        return True
+    return a[:40] == b[:40]
+
+
+def tournaments_by_start_date(items: list[dict[str, Any]]) -> dict[date, list[dict[str, Any]]]:
+    from collections import defaultdict
+
+    grouped: dict[date, list[dict[str, Any]]] = defaultdict(list)
+    for item in items:
+        start = _parse_item_date(item.get("start_date"))
+        if start is not None:
+            grouped[start].append(item)
+    return grouped
+
+
+def match_tournament_for_event(ev: StreamEvent, items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    by_date = tournaments_by_start_date(items)
+    candidates = by_date.get(ev.start_date, [])
+    if not candidates:
+        return None
+    for item in candidates:
+        if titles_match(ev.title, str(item.get("title") or "")):
+            return item
+    return None
+
+
+async def link_manual_stream_events(
+    session: AsyncSession,
+    items: list[dict[str, Any]],
+) -> int:
+    """Привязать вручную созданные мероприятия к турнирам ffkm-admin (дата + название)."""
+    result = await session.execute(
+        select(StreamEvent).where(StreamEvent.ffkm_admin_tournament_id.is_(None))
+    )
+    manual_events = result.scalars().all()
+    linked = 0
+    for ev in manual_events:
+        match = match_tournament_for_event(ev, items)
+        if not match or match.get("id") is None:
+            continue
+        ev.ffkm_admin_tournament_id = int(match["id"])
+        rank_norm = normalize_rank(match.get("rank"))
+        ev.ffkm_admin_rank = rank_norm or None
+        linked += 1
+    if linked:
+        await session.flush()
+    return linked
+
+
+async def ensure_ffkm_link_for_stream(
+    session: AsyncSession,
+    stream_id: Any,
+    *,
+    client: FfkmAdminClient | None = None,
+) -> bool:
+    """Попытаться привязать одно мероприятие перед push ссылок."""
+    from uuid import UUID
+
+    sid = stream_id if isinstance(stream_id, UUID) else UUID(str(stream_id))
+    result = await session.execute(select(StreamEvent).where(StreamEvent.id == sid))
+    ev = result.scalar_one_or_none()
+    if ev is None or ev.ffkm_admin_tournament_id is not None:
+        return ev is not None and ev.ffkm_admin_tournament_id is not None
+
+    api = client or FfkmAdminClient()
+    try:
+        items = await api.iter_all_tournaments()
+    except FfkmAdminClientError as exc:
+        logger.warning("ffkm link lookup failed for %s: %s", sid, exc)
+        return False
+
+    match = match_tournament_for_event(ev, items)
+    if not match or match.get("id") is None:
+        return False
+    ev.ffkm_admin_tournament_id = int(match["id"])
+    ev.ffkm_admin_rank = normalize_rank(match.get("rank")) or None
+    await session.flush()
+    return True
+
+
+async def push_all_linked_stream_urls(session: AsyncSession) -> tuple[int, int]:
+    """Отправить ссылки в ffkm-admin для всех привязанных мероприятий с URL."""
+    from sqlalchemy.orm import selectinload
+
+    from app.services.ffkm_stream_push import primary_stream_url, push_stream_urls_to_ffkm_admin
+
+    result = await session.execute(
+        select(StreamEvent)
+        .options(selectinload(StreamEvent.days))
+        .where(StreamEvent.ffkm_admin_tournament_id.isnot(None))
+    )
+    attempted = 0
+    pushed = 0
+    for ev in result.scalars():
+        if not primary_stream_url(ev):
+            continue
+        attempted += 1
+        if await push_stream_urls_to_ffkm_admin(session, ev.id):
+            pushed += 1
+    return attempted, pushed
 
 
 async def _ensure_day_rows(
@@ -212,13 +337,29 @@ async def sync_tournaments_from_ffkm_admin(
             stats.errors.append(f"item error: {exc}")
             logger.exception("ffkm tournament sync item failed")
 
+    try:
+        stats.linked_manual = await link_manual_stream_events(session, items)
+    except Exception as exc:  # noqa: BLE001
+        stats.errors.append(f"link manual: {exc}")
+        logger.exception("ffkm manual link failed")
+
     await session.commit()
+
+    try:
+        stats.push_attempted, stats.pushed_urls = await push_all_linked_stream_urls(session)
+    except Exception as exc:  # noqa: BLE001
+        stats.errors.append(f"push urls: {exc}")
+        logger.exception("ffkm stream url push batch failed")
+
     logger.info(
-        "ffkm tournament sync done fetched=%s kept=%s created=%s updated=%s from=%s base=%s",
+        "ffkm tournament sync done fetched=%s kept=%s created=%s updated=%s linked=%s pushed=%s/%s from=%s base=%s",
         stats.fetched,
         stats.kept,
         stats.created,
         stats.updated,
+        stats.linked_manual,
+        stats.pushed_urls,
+        stats.push_attempted,
         from_date.isoformat(),
         (settings.ffkm_admin_api_base_url or "")[:60],
     )

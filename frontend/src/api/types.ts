@@ -92,6 +92,9 @@ export type FfkmAdminSyncResult = {
   skipped_physical: number
   skipped_before_from_date: number
   skipped_rank: number
+  linked_manual?: number
+  push_attempted?: number
+  pushed_urls?: number
   errors: string[]
 }
 

@@ -6,6 +6,7 @@ from app.services.ffkm_tournament_sync import (
     duration_from_dates,
     normalize_rank,
     should_keep_rank,
+    titles_match,
 )
 from app.services.ffkm_stream_push import build_stream_schedule_payload, primary_stream_url
 
@@ -39,6 +40,14 @@ def test_duration_from_dates_caps_at_5():
     assert duration_from_dates(date(2026, 8, 1), date(2026, 8, 3)) == 3
     assert duration_from_dates(date(2026, 8, 1), date(2026, 8, 10)) == 5
     assert duration_from_dates(date(2026, 8, 5), date(2026, 8, 1)) == 1
+
+
+def test_titles_match_fuzzy():
+    assert titles_match(
+        "Физкультурное мероприятие Финал Кубка «Открываем возможности»",
+        "Финал Кубка «Открываем возможности»",
+    )
+    assert titles_match("Турнир А", "Турнир Б") is False
 
 
 def test_build_stream_schedule_and_primary():
