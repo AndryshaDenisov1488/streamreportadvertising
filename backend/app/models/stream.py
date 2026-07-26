@@ -17,6 +17,9 @@ class StreamEvent(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     duration_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    ffkm_admin_tournament_id: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, unique=True, index=True
+    )
     locked_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

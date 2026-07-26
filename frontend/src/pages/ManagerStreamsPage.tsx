@@ -1,4 +1,11 @@
-import { CopyOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
+import {
+  CloudSyncOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  PlusOutlined,
+  SaveOutlined,
+} from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
@@ -21,7 +28,7 @@ import 'dayjs/locale/ru'
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import type { StreamEventListOut, StreamEventTemplateOut } from '@/api/types'
+import type { FfkmAdminSyncResult, StreamEventListOut, StreamEventTemplateOut } from '@/api/types'
 import {
   apiFetch,
   createTemplateFromEventRequest,
@@ -76,6 +83,21 @@ export const ManagerStreamsPage: React.FC = () => {
   const { data: templates, isLoading: tplLoading } = useQuery({
     queryKey: ['stream-event-templates'],
     queryFn: listEventTemplatesRequest,
+  })
+
+  const syncFfkmMut = useMutation({
+    mutationFn: async () =>
+      (await apiFetch('/stream-events/sync/ffkm-admin', { method: 'POST' })) as FfkmAdminSyncResult,
+    onSuccess: async (r) => {
+      message.success(
+        `Синхронизация ffkm-admin: создано ${r.created}, обновлено ${r.updated} (из ${r.kept} подходящих)`,
+      )
+      if (r.errors?.length) {
+        message.warning(`Ошибки: ${r.errors.slice(0, 3).join('; ')}`)
+      }
+      await qc.invalidateQueries({ queryKey: ['streams'] })
+    },
+    onError: (e: Error) => message.error(e.message || 'Не удалось синхронизировать календарь'),
   })
 
   const createMut = useMutation({
@@ -204,6 +226,21 @@ export const ManagerStreamsPage: React.FC = () => {
       render: (v: string) => formatDateRu(v),
     },
     { title: 'Дней', dataIndex: 'duration_days', key: 'duration_days', width: 90 },
+    {
+      title: 'Источник',
+      key: 'source',
+      width: 110,
+      render: (_, r) =>
+        r.ffkm_admin_tournament_id ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            ffkm-admin #{r.ffkm_admin_tournament_id}
+          </Typography.Text>
+        ) : (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            вручную
+          </Typography.Text>
+        ),
+    },
     {
       title: 'Статус',
       key: 'status',
@@ -401,11 +438,20 @@ export const ManagerStreamsPage: React.FC = () => {
             Мероприятия
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            Создание, шаблоны, отчёты — Word, CSV и Excel. Колонка «Трансляция» — копирование ссылки на трансляцию по
-            дням без захода в карточку.
+            Календарь подтягивается из ffkm-admin. Ссылку на трансляцию, URL и ключ заполняете здесь — ссылка уходит в
+            ffkm-admin и на сайт автоматически.
           </Typography.Paragraph>
         </div>
         <Space wrap style={{ width: isNarrow ? '100%' : undefined }}>
+          <Button
+            icon={<CloudSyncOutlined />}
+            loading={syncFfkmMut.isPending}
+            onClick={() => syncFfkmMut.mutate()}
+            block={isNarrow}
+            size="large"
+          >
+            Синхронизировать ffkm-admin
+          </Button>
           <Button icon={<DownloadOutlined />} onClick={() => setReportOpen(true)} block={isNarrow} size="large">
             Экспорт отчёта
           </Button>

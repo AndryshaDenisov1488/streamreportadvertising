@@ -84,6 +84,20 @@ class Settings(BaseSettings):
     # HMAC-SHA256 shared secret for X-Webhook-Signature (required when URL is set)
     external_webhook_secret: str = ""
 
+    # ffkm-admin Integration API — синк календаря турниров в мероприятия
+    ffkm_admin_api_base_url: str = ""
+    ffkm_admin_api_token: str = ""
+    ffkm_admin_timeout_seconds: float = 20.0
+    # Турниры с date_start >= этой даты (ISO YYYY-MM-DD)
+    ffkm_admin_sync_from_date: str = "2026-07-01"
+    ffkm_admin_sync_enabled: bool = False
+    ffkm_admin_sync_interval_seconds: int = 900
+    ffkm_admin_sync_initial_delay_seconds: int = 45
+    # Исходящий webhook: ссылки на трансляцию → ffkm-admin
+    # (POST /api/v1/webhooks/streaming-stream-sync)
+    ffkm_stream_webhook_url: str = ""
+    ffkm_stream_webhook_secret: str = ""
+
     # Дни хранения журнала аудита (0 = не удалять; фоновые задачи — вне HTTP)
     audit_retention_days: int = 0
 
@@ -141,6 +155,19 @@ class Settings(BaseSettings):
             raise ValueError(
                 "EXTERNAL_WEBHOOK_SECRET must be set when EXTERNAL_WEBHOOK_URL is configured. "
                 "Outbound webhooks are HMAC-SHA256 signed (header X-Webhook-Signature)."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_ffkm_stream_webhook_secret(self) -> "Settings":
+        """Fail-closed: stream push URL requires HMAC secret."""
+        url = (self.ffkm_stream_webhook_url or "").strip()
+        if not url:
+            return self
+        secret = (self.ffkm_stream_webhook_secret or "").strip()
+        if not secret:
+            raise ValueError(
+                "FFKM_STREAM_WEBHOOK_SECRET must be set when FFKM_STREAM_WEBHOOK_URL is configured."
             )
         return self
 

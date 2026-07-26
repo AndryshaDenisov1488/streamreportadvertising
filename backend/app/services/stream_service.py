@@ -341,6 +341,7 @@ async def list_stream_events(
                 title=ev.title,
                 start_date=ev.start_date,
                 duration_days=ev.duration_days,
+                ffkm_admin_tournament_id=ev.ffkm_admin_tournament_id,
                 locked_by_user_id=ev.locked_by_user_id,
                 locked_by_display_name=locked_by_display_name,
                 assignment_summary=summary,
@@ -411,6 +412,7 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         title=ev.title,
         start_date=ev.start_date,
         duration_days=ev.duration_days,
+        ffkm_admin_tournament_id=ev.ffkm_admin_tournament_id,
         locked_by_user_id=ev.locked_by_user_id,
         locked_by_display_name=locked_by_display_name,
         day_assignments=day_assignments,
@@ -527,6 +529,7 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
         "duration_days": ev.duration_days,
         "content_url": ev.content_url,
     }
+    before_urls = {(d.day_index, (d.stream_url or "").strip()) for d in ev.days}
     if data.title is not None:
         ev.title = data.title
     if data.start_date is not None:
@@ -552,7 +555,13 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
         },
     )
     await session.commit()
-    return await get_stream_event_detail(session, stream_id)
+    detail = await get_stream_event_detail(session, stream_id)
+    after_urls = {(d.day_index, (d.stream_url or "").strip()) for d in detail.days}
+    if before_urls != after_urls and detail.ffkm_admin_tournament_id is not None:
+        from app.services.ffkm_stream_push import push_stream_urls_to_ffkm_admin
+
+        await push_stream_urls_to_ffkm_admin(session, stream_id)
+    return detail
 
 
 async def delete_stream_event(session: AsyncSession, *, actor: User, stream_id: UUID) -> None:

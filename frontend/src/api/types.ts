@@ -67,6 +67,8 @@ export type StreamEventListOut = {
   title: string
   start_date: string
   duration_days: number
+  /** ID турнира в ffkm-admin (если мероприятие синхронизировано) */
+  ffkm_admin_tournament_id?: number | null
   locked_by_user_id: string | null
   /** Устар.: один оператор; при нескольких — assignment_summary */
   locked_by_display_name: string | null
@@ -78,6 +80,17 @@ export type StreamEventListOut = {
   created_at: string
   /** Ссылки на трансляцию по дням (список мероприятий) */
   day_stream_links?: StreamDayLinkOut[]
+}
+
+export type FfkmAdminSyncResult = {
+  fetched: number
+  kept: number
+  created: number
+  updated: number
+  skipped_physical: number
+  skipped_before_from_date: number
+  skipped_rank: number
+  errors: string[]
 }
 
 export type StreamDayOut = {

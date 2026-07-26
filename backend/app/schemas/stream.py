@@ -89,6 +89,7 @@ class StreamEventListOut(BaseModel):
     title: str
     start_date: date
     duration_days: int
+    ffkm_admin_tournament_id: int | None = None
     locked_by_user_id: uuid.UUID | None
     locked_by_display_name: str | None = None
     """Устар.: один «кто в работе»; при нескольких операторах смотрите assignment_summary."""
@@ -125,6 +126,7 @@ class StreamEventDetailOut(BaseModel):
     title: str
     start_date: date
     duration_days: int
+    ffkm_admin_tournament_id: int | None = None
     locked_by_user_id: uuid.UUID | None
     locked_by_display_name: str | None = None
     day_assignments: list[DayAssignmentOut] = []
