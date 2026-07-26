@@ -75,7 +75,7 @@ export const OperatorHomePage: React.FC = () => {
         Мероприятия
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Ближайшие турниры по выбранному периоду. Можно взять свободные дни; если все дни заняты — карточка
+        Ближайшие турниры выбранного сезона. Можно взять свободные дни; если все дни заняты — карточка
         приглушена.
       </Typography.Paragraph>
 
