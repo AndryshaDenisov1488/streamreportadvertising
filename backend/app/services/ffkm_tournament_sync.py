@@ -163,6 +163,7 @@ async def sync_tournaments_from_ffkm_admin(
 
             end = _parse_item_date(item.get("end_date"))
             title = (item.get("title") or "").strip() or f"Турнир #{tournament_id}"
+            rank_norm = normalize_rank(rank)
             duration = duration_from_dates(start, end)
             stats.kept += 1
 
@@ -176,6 +177,7 @@ async def sync_tournaments_from_ffkm_admin(
                     start_date=start,
                     duration_days=duration,
                     ffkm_admin_tournament_id=tournament_id,
+                    ffkm_admin_rank=rank_norm or None,
                     created_by_id=None,
                 )
                 session.add(ev)
@@ -189,6 +191,9 @@ async def sync_tournaments_from_ffkm_admin(
                     changed = True
                 if ev.start_date != start:
                     ev.start_date = start
+                    changed = True
+                if (ev.ffkm_admin_rank or None) != (rank_norm or None):
+                    ev.ffkm_admin_rank = rank_norm or None
                     changed = True
                 if ev.duration_days != duration:
                     # Не уменьшаем длительность, если уже больше (локальные дни/эфиры)

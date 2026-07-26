@@ -1,13 +1,19 @@
-import { PlayCircleOutlined } from '@ant-design/icons'
 import { App as AntApp, Card, Col, Empty, Row, Space, Tag, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
-import React from 'react'
+import dayjs from 'dayjs'
+import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import type { StreamEventListOut } from '@/api/types'
 import { apiFetch } from '@/api/client'
+import { StreamEventsFilterBar, type StreamRangePreset } from '@/components/StreamEventsFilterBar'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
+import {
+  defaultManagerRange,
+  filterStreamEvents,
+  type StreamCategory,
+} from '@/utils/streamEventFilters'
 
 const endedDaysStatusLabel = (dayIndices: number[] | undefined) => {
   const list = (dayIndices ?? []).filter((d) => Number.isInteger(d)).sort((a, b) => a - b)
@@ -22,33 +28,30 @@ const endedDaysStatusLabel = (dayIndices: number[] | undefined) => {
 
 export const OperatorHomePage: React.FC = () => {
   const { message } = AntApp.useApp()
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => defaultManagerRange())
+  const [rangePreset, setRangePreset] = useState<StreamRangePreset>('month')
+  const [category, setCategory] = useState<StreamCategory>('all')
 
   const { data, isLoading } = useQuery({
     queryKey: ['streams'],
     queryFn: async () => (await apiFetch('/stream-events')) as StreamEventListOut[],
   })
 
+  const visibleEvents = useMemo(
+    () =>
+      filterStreamEvents(data ?? [], {
+        rangeStart: range[0],
+        rangeEnd: range[1],
+        category,
+      }),
+    [data, range, category],
+  )
+
   const handleCardClick = (ev: StreamEventListOut) => {
     if (!ev.has_slot_for_me) {
       message.warning('Все дни этого мероприятия уже распределены между операторами')
     }
   }
-
-  const today = new Date()
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const rangeStart = new Date(todayStart)
-  rangeStart.setDate(rangeStart.getDate() - 3)
-  const rangeEnd = new Date(todayStart)
-  rangeEnd.setDate(rangeEnd.getDate() + 7)
-  rangeEnd.setHours(23, 59, 59, 999)
-
-  const visibleEvents = (data ?? []).filter((ev) => {
-    const eventStart = new Date(`${ev.start_date}T00:00:00`)
-    const eventEnd = new Date(eventStart)
-    eventEnd.setDate(eventEnd.getDate() + ev.duration_days - 1)
-    eventEnd.setHours(23, 59, 59, 999)
-    return eventEnd >= rangeStart && eventStart <= rangeEnd
-  })
 
   return (
     <AppLayout
@@ -62,10 +65,22 @@ export const OperatorHomePage: React.FC = () => {
         Мероприятия
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Выберите мероприятие. Можно взять свободные дни турнира; если все дни заняты — карточка приглушена.
+        Ближайшие турниры по выбранному периоду. Можно взять свободные дни; если все дни заняты — карточка
+        приглушена.
       </Typography.Paragraph>
+
+      <StreamEventsFilterBar
+        range={range}
+        onRangeChange={setRange}
+        category={category}
+        onCategoryChange={setCategory}
+        preset={rangePreset}
+        onPresetChange={setRangePreset}
+        resultCount={visibleEvents.length}
+      />
+
       {!isLoading && visibleEvents.length === 0 ? (
-        <Empty description="Нет мероприятий" />
+        <Empty description="Нет мероприятий в выбранном периоде" />
       ) : (
         <Row gutter={[16, 16]}>
           {visibleEvents.map((ev) => {
@@ -114,7 +129,7 @@ export const OperatorHomePage: React.FC = () => {
                         )}
                       </Space>
                       <Typography.Link>
-                        <PlayCircleOutlined /> Открыть пульт
+                        Открыть пульт
                       </Typography.Link>
                     </Space>
                   </Card>

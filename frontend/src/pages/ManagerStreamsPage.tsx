@@ -10,6 +10,7 @@ import {
   App as AntApp,
   Button,
   Card,
+  Collapse,
   DatePicker,
   Form,
   Grid,
@@ -25,7 +26,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import 'dayjs/locale/ru'
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import type { FfkmAdminSyncResult, StreamEventListOut, StreamEventTemplateOut } from '@/api/types'
@@ -36,9 +37,18 @@ import {
   instantiateTemplateRequest,
   listEventTemplatesRequest,
 } from '@/api/client'
+import { ManagerOverviewPanel } from '@/components/ManagerOverviewPanel'
 import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
+import { StreamEventsFilterBar, type StreamRangePreset } from '@/components/StreamEventsFilterBar'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
+import {
+  categoryLabel,
+  defaultManagerRange,
+  filterStreamEvents,
+  inferStreamCategory,
+  type StreamCategory,
+} from '@/utils/streamEventFilters'
 
 dayjs.locale('ru')
 
@@ -74,6 +84,9 @@ export const ManagerStreamsPage: React.FC = () => {
   const [reportForm] = Form.useForm()
   const [tplNameForm] = Form.useForm()
   const [instantiateForm] = Form.useForm()
+  const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => defaultManagerRange())
+  const [rangePreset, setRangePreset] = useState<StreamRangePreset>('month')
+  const [category, setCategory] = useState<StreamCategory>('official_sports_significant')
 
   const { data, isLoading } = useQuery({
     queryKey: ['streams'],
@@ -216,6 +229,16 @@ export const ManagerStreamsPage: React.FC = () => {
     onError: (e: Error) => message.error(e.message),
   })
 
+  const filteredEvents = useMemo(
+    () =>
+      filterStreamEvents(data ?? [], {
+        rangeStart: range[0],
+        rangeEnd: range[1],
+        category,
+      }),
+    [data, range, category],
+  )
+
   const columns: ColumnsType<StreamEventListOut> = [
     { title: 'Название', dataIndex: 'title', key: 'title' },
     {
@@ -226,6 +249,16 @@ export const ManagerStreamsPage: React.FC = () => {
       render: (v: string) => formatDateRu(v),
     },
     { title: 'Дней', dataIndex: 'duration_days', key: 'duration_days', width: 90 },
+    {
+      title: 'Категория',
+      key: 'category',
+      width: 170,
+      render: (_, r) => (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {categoryLabel(inferStreamCategory(r))}
+        </Typography.Text>
+      ),
+    },
     {
       title: 'Источник',
       key: 'source',
@@ -398,12 +431,23 @@ export const ManagerStreamsPage: React.FC = () => {
       }
     >
       <Card
-        title="Статистика операторов"
+        title="Оперативная сводка"
         style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
         styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
       >
-        <OperatorStatsPanel compact />
+        <ManagerOverviewPanel events={data ?? []} category={category} />
       </Card>
+
+      <Collapse
+        style={{ marginBottom: 16 }}
+        items={[
+          {
+            key: 'stats',
+            label: 'Подробная статистика операторов',
+            children: <OperatorStatsPanel compact />,
+          },
+        ]}
+      />
 
       <Card
         title="Шаблоны мероприятий"
@@ -461,15 +505,26 @@ export const ManagerStreamsPage: React.FC = () => {
         </Space>
       </Space>
 
+      <StreamEventsFilterBar
+        range={range}
+        onRangeChange={setRange}
+        category={category}
+        onCategoryChange={setCategory}
+        preset={rangePreset}
+        onPresetChange={setRangePreset}
+        resultCount={filteredEvents.length}
+      />
+
       <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
         <Table
           rowKey="id"
           loading={isLoading}
-          dataSource={data ?? []}
+          dataSource={filteredEvents}
           columns={columns}
           pagination={{ pageSize: 10 }}
           scroll={{ x: 1000 }}
           size={isNarrow ? 'small' : 'middle'}
+          locale={{ emptyText: 'Нет мероприятий в выбранном периоде' }}
         />
       </Card>
 

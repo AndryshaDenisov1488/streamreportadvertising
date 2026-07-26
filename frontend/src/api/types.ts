@@ -69,6 +69,8 @@ export type StreamEventListOut = {
   duration_days: number
   /** ID турнира в ffkm-admin (если мероприятие синхронизировано) */
   ffkm_admin_tournament_id?: number | null
+  /** rank из ffkm-admin: official_sports_significant, all_russian, … */
+  ffkm_admin_rank?: string | null
   locked_by_user_id: string | null
   /** Устар.: один оператор; при нескольких — assignment_summary */
   locked_by_display_name: string | null

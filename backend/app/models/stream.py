@@ -20,6 +20,7 @@ class StreamEvent(Base):
     ffkm_admin_tournament_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True, unique=True, index=True
     )
+    ffkm_admin_rank: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     locked_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )

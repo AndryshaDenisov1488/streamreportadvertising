@@ -297,7 +297,9 @@ async def list_stream_events(
     active_ids = await _active_broadcast_ids(session)
     ended_ids = await _ended_broadcast_ids(session)
     ended_days_by_event = await _ended_broadcast_days_by_event(session)
-    result = await session.execute(select(StreamEvent).order_by(StreamEvent.start_date.desc(), StreamEvent.created_at.desc()))
+    result = await session.execute(
+        select(StreamEvent).order_by(StreamEvent.start_date.asc(), StreamEvent.created_at.asc())
+    )
     events = list(result.scalars().all())
     eids = [e.id for e in events]
     days_by_event: dict[UUID, list[StreamDay]] = defaultdict(list)
@@ -342,6 +344,7 @@ async def list_stream_events(
                 start_date=ev.start_date,
                 duration_days=ev.duration_days,
                 ffkm_admin_tournament_id=ev.ffkm_admin_tournament_id,
+                ffkm_admin_rank=ev.ffkm_admin_rank,
                 locked_by_user_id=ev.locked_by_user_id,
                 locked_by_display_name=locked_by_display_name,
                 assignment_summary=summary,
@@ -413,6 +416,7 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         start_date=ev.start_date,
         duration_days=ev.duration_days,
         ffkm_admin_tournament_id=ev.ffkm_admin_tournament_id,
+        ffkm_admin_rank=ev.ffkm_admin_rank,
         locked_by_user_id=ev.locked_by_user_id,
         locked_by_display_name=locked_by_display_name,
         day_assignments=day_assignments,
