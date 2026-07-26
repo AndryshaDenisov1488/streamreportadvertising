@@ -1,6 +1,5 @@
 import { App as AntApp, Card, Col, Empty, Row, Space, Tag, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
-import dayjs from 'dayjs'
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -10,9 +9,7 @@ import { StreamEventsFilterBar } from '@/components/StreamEventsFilterBar'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
 import {
-  categoryLabel,
   filterStreamEvents,
-  inferStreamCategory,
   type StreamCategory,
 } from '@/utils/streamEventFilters'
 import {
