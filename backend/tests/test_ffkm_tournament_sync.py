@@ -8,7 +8,11 @@ from app.services.ffkm_tournament_sync import (
     should_keep_rank,
     titles_match,
 )
-from app.services.ffkm_stream_push import build_stream_schedule_payload, primary_stream_url
+from app.services.ffkm_stream_push import (
+    build_stream_schedule_payload,
+    primary_stream_url,
+    public_online_stream_url,
+)
 
 
 class _Day:
@@ -57,7 +61,23 @@ def test_build_stream_schedule_and_primary():
     )
     schedule = build_stream_schedule_payload(ev)  # type: ignore[arg-type]
     assert schedule[0]["stream_date"] == "2026-09-01"
+    assert schedule[0]["day_index"] == 1
+    assert schedule[0]["title"] == "День 1"
     assert schedule[0]["online_stream_url"] is None
     assert schedule[1]["stream_date"] == "2026-09-02"
+    assert schedule[1]["day_index"] == 2
+    assert schedule[1]["title"] == "День 2"
+    assert schedule[1]["stream_date_ru"] == "02.09.2026"
     assert schedule[1]["online_stream_url"] == "https://vk.com/video-1_2"
     assert primary_stream_url(ev) == "https://vk.com/video-1_2"  # type: ignore[arg-type]
+
+
+def test_public_online_stream_url_prefers_today_then_last_filled():
+    ev = _Event(
+        date(2026, 8, 24),
+        [_Day(1, "https://vk.com/d1"), _Day(2, "https://vk.com/d2"), _Day(3, "")],
+    )
+    assert public_online_stream_url(ev, today=date(2026, 8, 24)) == "https://vk.com/d1"  # type: ignore[arg-type]
+    assert public_online_stream_url(ev, today=date(2026, 8, 25)) == "https://vk.com/d2"  # type: ignore[arg-type]
+    assert public_online_stream_url(ev, today=date(2026, 8, 26)) == "https://vk.com/d2"  # type: ignore[arg-type]
+    assert primary_stream_url(ev) == "https://vk.com/d1"  # type: ignore[arg-type]
