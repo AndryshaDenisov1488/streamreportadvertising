@@ -16,9 +16,10 @@ from app.services.ffkm_stream_push import (
 
 
 class _Day:
-    def __init__(self, day_index: int, stream_url: str = ""):
+    def __init__(self, day_index: int, stream_url: str = "", stream_key: str = ""):
         self.day_index = day_index
         self.stream_url = stream_url
+        self.stream_key = stream_key
 
 
 class _Event:
@@ -81,3 +82,16 @@ def test_public_online_stream_url_prefers_today_then_last_filled():
     assert public_online_stream_url(ev, today=date(2026, 8, 25)) == "https://vk.com/d2"  # type: ignore[arg-type]
     assert public_online_stream_url(ev, today=date(2026, 8, 26)) == "https://vk.com/d2"  # type: ignore[arg-type]
     assert primary_stream_url(ev) == "https://vk.com/d1"  # type: ignore[arg-type]
+
+
+def test_swapped_stream_key_used_as_public_url():
+    ev = _Event(
+        date(2026, 8, 24),
+        [
+            _Day(1, "https://vkvideo.ru/live-1"),
+            _Day(2, "1125900042558359_key", "https://vkvideo.ru/live-2"),
+        ],
+    )
+    schedule = build_stream_schedule_payload(ev)  # type: ignore[arg-type]
+    assert schedule[1]["online_stream_url"] == "https://vkvideo.ru/live-2"
+    assert public_online_stream_url(ev, today=date(2026, 8, 25)) == "https://vkvideo.ru/live-2"  # type: ignore[arg-type]

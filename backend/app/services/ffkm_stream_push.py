@@ -26,13 +26,29 @@ def _day_date(ev: StreamEvent, day_index: int) -> date:
     return ev.start_date + timedelta(days=int(day_index) - 1)
 
 
+def _looks_like_http_url(value: str) -> bool:
+    text = (value or "").strip().lower()
+    return text.startswith("http://") or text.startswith("https://")
+
+
+def effective_public_stream_url(day: Any) -> str:
+    """Публичная ссылка для сайта: stream_url, либо stream_key, если поля перепутали."""
+    url = (getattr(day, "stream_url", None) or "").strip()
+    key = (getattr(day, "stream_key", None) or "").strip()
+    if _looks_like_http_url(url):
+        return url
+    if _looks_like_http_url(key):
+        return key
+    return ""
+
+
 def build_stream_schedule_payload(ev: StreamEvent) -> list[dict[str, Any]]:
     """По одному эфиру на календарный день турнира (все дни, не только первый)."""
     days = sorted(ev.days or [], key=lambda d: d.day_index)
     schedule: list[dict[str, Any]] = []
     for d in days:
         stream_date = _day_date(ev, d.day_index)
-        url = (d.stream_url or "").strip()
+        url = effective_public_stream_url(d)
         schedule.append(
             {
                 "day_index": int(d.day_index),
@@ -50,7 +66,7 @@ def filled_stream_urls_in_order(ev: StreamEvent) -> list[str]:
     days = sorted(ev.days or [], key=lambda d: d.day_index)
     out: list[str] = []
     for d in days:
-        u = (d.stream_url or "").strip()
+        u = effective_public_stream_url(d)
         if u:
             out.append(u)
     return out
@@ -72,7 +88,7 @@ def public_online_stream_url(ev: StreamEvent, *, today: date | None = None) -> s
     days = sorted(ev.days or [], key=lambda d: d.day_index)
     last_filled: str | None = None
     for d in days:
-        u = (d.stream_url or "").strip()
+        u = effective_public_stream_url(d)
         if not u:
             continue
         last_filled = u
