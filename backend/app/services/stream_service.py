@@ -561,15 +561,19 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
     await session.commit()
     detail = await get_stream_event_detail(session, stream_id)
     after_urls = {(d.day_index, (d.stream_url or "").strip()) for d in detail.days}
-    if before_urls != after_urls:
-        from app.services.ffkm_tournament_sync import ensure_ffkm_link_for_stream
-        from app.services.ffkm_stream_push import push_stream_urls_to_ffkm_admin
+    urls_changed = before_urls != after_urls
+    from app.services.ffkm_tournament_sync import ensure_ffkm_link_for_stream
+    from app.services.ffkm_stream_push import push_stream_urls_to_ffkm_admin
 
-        await ensure_ffkm_link_for_stream(session, stream_id)
-        await session.commit()
-        detail = await get_stream_event_detail(session, stream_id)
-        if detail.ffkm_admin_tournament_id is not None:
-            await push_stream_urls_to_ffkm_admin(session, stream_id)
+    await ensure_ffkm_link_for_stream(session, stream_id)
+    await session.commit()
+    detail = await get_stream_event_detail(session, stream_id)
+    # Всегда пушим при наличии привязки: иначе повторное сохранение дня 2+
+    # с тем же primary URL дня 1 не доходит до ffkm-admin/сайта.
+    if detail.ffkm_admin_tournament_id is not None and (
+        urls_changed or any((d.stream_url or "").strip() for d in detail.days)
+    ):
+        await push_stream_urls_to_ffkm_admin(session, stream_id)
     return detail
 
 
