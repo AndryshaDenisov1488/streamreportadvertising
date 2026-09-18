@@ -150,23 +150,57 @@ def match_tournament_for_event(ev: StreamEvent, items: list[dict[str, Any]]) -> 
     return None
 
 
+def linkable_tournament_items(
+    items: list[dict[str, Any]], *, from_date: date | None = None
+) -> list[dict[str, Any]]:
+    """Apply the same rank/date boundary used by polling before any manual link."""
+    boundary = from_date or parse_sync_from_date()
+    result: list[dict[str, Any]] = []
+    for item in items:
+        if not should_keep_rank(item.get("rank")):
+            continue
+        try:
+            start = _parse_item_date(item.get("start_date"))
+        except (TypeError, ValueError):
+            continue
+        if start is None or start < boundary:
+            continue
+        result.append(item)
+    return result
+
+
 async def link_manual_stream_events(
     session: AsyncSession,
     items: list[dict[str, Any]],
+    *,
+    from_date: date | None = None,
 ) -> int:
     """Привязать вручную созданные мероприятия к турнирам ffkm-admin (дата + название)."""
+    eligible_items = linkable_tournament_items(items, from_date=from_date)
+    linked_result = await session.execute(
+        select(StreamEvent.ffkm_admin_tournament_id).where(
+            StreamEvent.ffkm_admin_tournament_id.isnot(None)
+        )
+    )
+    assigned_ids = {
+        int(value) for value in linked_result.scalars().all() if value is not None
+    }
     result = await session.execute(
         select(StreamEvent).where(StreamEvent.ffkm_admin_tournament_id.is_(None))
     )
     manual_events = result.scalars().all()
     linked = 0
     for ev in manual_events:
-        match = match_tournament_for_event(ev, items)
+        match = match_tournament_for_event(ev, eligible_items)
         if not match or match.get("id") is None:
             continue
-        ev.ffkm_admin_tournament_id = int(match["id"])
+        tournament_id = int(match["id"])
+        if tournament_id in assigned_ids:
+            continue
+        ev.ffkm_admin_tournament_id = tournament_id
         rank_norm = normalize_rank(match.get("rank"))
         ev.ffkm_admin_rank = rank_norm or None
+        assigned_ids.add(tournament_id)
         linked += 1
     if linked:
         await session.flush()
@@ -195,13 +229,53 @@ async def ensure_ffkm_link_for_stream(
         logger.warning("ffkm link lookup failed for %s: %s", sid, exc)
         return False
 
-    match = match_tournament_for_event(ev, items)
+    match = match_tournament_for_event(
+        ev, linkable_tournament_items(items, from_date=parse_sync_from_date())
+    )
     if not match or match.get("id") is None:
         return False
-    ev.ffkm_admin_tournament_id = int(match["id"])
+    tournament_id = int(match["id"])
+    occupied_result = await session.execute(
+        select(StreamEvent.id).where(
+            StreamEvent.ffkm_admin_tournament_id == tournament_id,
+            StreamEvent.id != ev.id,
+        )
+    )
+    if occupied_result.scalar_one_or_none() is not None:
+        logger.info(
+            "ffkm link skipped: tournament_id=%s already assigned to another stream",
+            tournament_id,
+        )
+        return False
+    ev.ffkm_admin_tournament_id = tournament_id
     ev.ffkm_admin_rank = normalize_rank(match.get("rank")) or None
     await session.flush()
     return True
+
+
+async def ensure_ffkm_link_for_stream_locked(
+    session: AsyncSession,
+    stream_id: Any,
+    *,
+    client: FfkmAdminClient | None = None,
+) -> bool:
+    """Serialize on-save linking with polling/manual sync entry points."""
+
+    async def _link() -> bool:
+        try:
+            linked = await ensure_ffkm_link_for_stream(
+                session, stream_id, client=client
+            )
+            # The advisory lock must remain held through durability of the
+            # unique ffkm_admin_tournament_id assignment.
+            await session.commit()
+            return linked
+        except Exception:
+            await session.rollback()
+            raise
+
+    result = await run_if_leader(LOCK_FFKM_SYNC, _link)
+    return bool(result)
 
 
 async def push_all_linked_stream_urls(session: AsyncSession) -> tuple[int, int]:
@@ -265,6 +339,8 @@ async def sync_tournaments_from_ffkm_admin(
 
     stats.fetched = len(items)
 
+    eligible_items: list[dict[str, Any]] = []
+
     for item in items:
         try:
             tid_raw = item.get("id")
@@ -287,11 +363,36 @@ async def sync_tournaments_from_ffkm_admin(
                 stats.skipped_before_from_date += 1
                 continue
 
+            eligible_items.append(item)
+            stats.kept += 1
+        except Exception as exc:  # noqa: BLE001 — собираем ошибки по элементам
+            stats.errors.append(f"item filter error: {exc}")
+            logger.exception("ffkm tournament filter failed")
+
+    try:
+        # Prefer an existing manually created event before creating a new row
+        # for the same unique ffkm_admin_tournament_id.
+        stats.linked_manual = await link_manual_stream_events(
+            session, eligible_items, from_date=from_date
+        )
+    except Exception as exc:  # noqa: BLE001
+        stats.errors.append(f"link manual: {exc}")
+        logger.exception("ffkm manual link failed")
+        await session.rollback()
+        return stats
+
+    for item in eligible_items:
+        try:
+            tournament_id = int(item["id"])
+            rank = item.get("rank")
+            start = _parse_item_date(item.get("start_date"))
+            if start is None:  # already validated above; keeps type narrowing explicit
+                continue
+
             end = _parse_item_date(item.get("end_date"))
             title = (item.get("title") or "").strip() or f"Турнир #{tournament_id}"
             rank_norm = normalize_rank(rank)
             duration = duration_from_dates(start, end)
-            stats.kept += 1
 
             result = await session.execute(
                 select(StreamEvent).where(StreamEvent.ffkm_admin_tournament_id == tournament_id)
@@ -338,12 +439,6 @@ async def sync_tournaments_from_ffkm_admin(
             stats.errors.append(f"item error: {exc}")
             logger.exception("ffkm tournament sync item failed")
 
-    try:
-        stats.linked_manual = await link_manual_stream_events(session, items)
-    except Exception as exc:  # noqa: BLE001
-        stats.errors.append(f"link manual: {exc}")
-        logger.exception("ffkm manual link failed")
-
     await session.commit()
 
     try:
@@ -373,11 +468,23 @@ async def job_ffkm_tournament_sync() -> dict[str, Any]:
         return {"skipped": True, "reason": "FFKM_ADMIN_API_BASE_URL empty"}
     if not (settings.ffkm_admin_api_token or "").strip():
         return {"skipped": True, "reason": "FFKM_ADMIN_API_TOKEN empty"}
+    stats = await run_ffkm_sync_locked()
+    if stats is None:
+        return {"skipped": True, "reason": "FFKM sync already running"}
+    return stats.as_dict()
+
+
+async def run_ffkm_sync_locked(
+    *, client: FfkmAdminClient | None = None
+) -> SyncStats | None:
+    """Single safe entry point for loop, HTTP and CLI sync triggers."""
     from app.db.session import AsyncSessionLocal
 
-    async with AsyncSessionLocal() as session:
-        stats = await sync_tournaments_from_ffkm_admin(session)
-        return stats.as_dict()
+    async def _sync() -> SyncStats:
+        async with AsyncSessionLocal() as session:
+            return await sync_tournaments_from_ffkm_admin(session, client=client)
+
+    return await run_if_leader(LOCK_FFKM_SYNC, _sync)
 
 
 async def ffkm_tournament_sync_loop() -> None:
@@ -390,13 +497,8 @@ async def ffkm_tournament_sync_loop() -> None:
     await asyncio.sleep(delay)
     while True:
         try:
-
-            async def _tick() -> dict[str, Any]:
-                return await job_ffkm_tournament_sync()
-
-            result = await run_if_leader(LOCK_FFKM_SYNC, _tick)
-            if result is not None:
-                logger.info("ffkm tournament sync loop tick: %s", result)
+            result = await job_ffkm_tournament_sync()
+            logger.info("ffkm tournament sync loop tick: %s", result)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001

@@ -527,13 +527,13 @@ async def create_stream_event(session: AsyncSession, *, actor: User, data: Strea
 
 async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: UUID, data: StreamEventUpdate) -> StreamEventDetailOut:
     ev = await _get_event(session, stream_id)
+    before_urls = {(d.day_index, (d.stream_url or "").strip()) for d in ev.days}
     before = {
         "title": ev.title,
         "start_date": str(ev.start_date),
         "duration_days": ev.duration_days,
         "content_url": ev.content_url,
     }
-    before_urls = {(d.day_index, (d.stream_url or "").strip()) for d in ev.days}
     if data.title is not None:
         ev.title = data.title
     if data.start_date is not None:
@@ -562,14 +562,12 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
     detail = await get_stream_event_detail(session, stream_id)
     after_urls = {(d.day_index, (d.stream_url or "").strip()) for d in detail.days}
     urls_changed = before_urls != after_urls
-    from app.services.ffkm_tournament_sync import ensure_ffkm_link_for_stream
-    from app.services.ffkm_stream_push import push_stream_urls_to_ffkm_admin
 
-    await ensure_ffkm_link_for_stream(session, stream_id)
-    await session.commit()
+    from app.services.ffkm_stream_push import push_stream_urls_to_ffkm_admin
+    from app.services.ffkm_tournament_sync import ensure_ffkm_link_for_stream_locked
+
+    await ensure_ffkm_link_for_stream_locked(session, stream_id)
     detail = await get_stream_event_detail(session, stream_id)
-    # Всегда пушим при наличии привязки: иначе повторное сохранение дня 2+
-    # с тем же primary URL дня 1 не доходит до ffkm-admin/сайта.
     if detail.ffkm_admin_tournament_id is not None and (
         urls_changed or any((d.stream_url or "").strip() for d in detail.days)
     ):

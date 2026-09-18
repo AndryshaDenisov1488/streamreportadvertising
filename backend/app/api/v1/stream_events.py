@@ -36,19 +36,22 @@ async def list_streams(
 @router.post("/sync/ffkm-admin")
 async def sync_ffkm_admin_tournaments(
     actor: ManagerOrAdmin,
-    session: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Подтянуть турниры из ffkm-admin в мероприятия (upsert по ffkm_admin_tournament_id)."""
+    """Подтянуть турниры FFKM (идемпотентный upsert по tournament id)."""
     from fastapi import HTTPException, status
 
     from app.services.ffkm_admin_client import FfkmAdminClientError
-    from app.services.ffkm_tournament_sync import sync_tournaments_from_ffkm_admin
+    from app.services.ffkm_tournament_sync import run_ffkm_sync_locked
 
     _ = actor
     try:
-        stats = await sync_tournaments_from_ffkm_admin(session)
+        stats = await run_ffkm_sync_locked()
     except FfkmAdminClientError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    if stats is None:
+        return {"skipped": True, "reason": "FFKM sync already running"}
     return stats.as_dict()
 
 

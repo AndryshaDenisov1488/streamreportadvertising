@@ -32,13 +32,10 @@ def _looks_like_http_url(value: str) -> bool:
 
 
 def effective_public_stream_url(day: Any) -> str:
-    """Публичная ссылка для сайта: stream_url, либо stream_key, если поля перепутали."""
+    """Return only the explicit public URL; stream_key is an ingest secret."""
     url = (getattr(day, "stream_url", None) or "").strip()
-    key = (getattr(day, "stream_key", None) or "").strip()
     if _looks_like_http_url(url):
         return url
-    if _looks_like_http_url(key):
-        return key
     return ""
 
 
