@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from app.api.health import router as health_router
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.services.report_scheduler import setup_report_scheduler
+from app.services.ffkm_tournament_sync import ffkm_tournament_sync_loop
 from app.core.limiter import limiter
 from app.middleware.request_id import RequestIDMiddleware
 from app.websocket.hub import StreamEventHub
@@ -21,7 +23,15 @@ async def lifespan(app: FastAPI):
     Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
     app.state.ws_hub = StreamEventHub()
     app.state.report_scheduler = setup_report_scheduler()
+    app.state.ffkm_sync_task = asyncio.create_task(ffkm_tournament_sync_loop())
     yield
+    ffkm_task = getattr(app.state, "ffkm_sync_task", None)
+    if ffkm_task is not None:
+        ffkm_task.cancel()
+        try:
+            await ffkm_task
+        except asyncio.CancelledError:
+            pass
     sched = getattr(app.state, "report_scheduler", None)
     if sched is not None:
         sched.shutdown(wait=False)

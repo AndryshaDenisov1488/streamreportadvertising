@@ -33,6 +33,28 @@ async def list_streams(
     return await stream_service.list_stream_events(session, viewer=actor)
 
 
+@router.post("/sync/ffkm-admin")
+async def sync_ffkm_admin_tournaments(
+    actor: ManagerOrAdmin,
+) -> dict:
+    """Подтянуть турниры FFKM (идемпотентный upsert по tournament id)."""
+    from fastapi import HTTPException, status
+
+    from app.services.ffkm_admin_client import FfkmAdminClientError
+    from app.services.ffkm_tournament_sync import run_ffkm_sync_locked
+
+    _ = actor
+    try:
+        stats = await run_ffkm_sync_locked()
+    except FfkmAdminClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    if stats is None:
+        return {"skipped": True, "reason": "FFKM sync already running"}
+    return stats.as_dict()
+
+
 @router.get("/{stream_id}", response_model=StreamEventDetailOut)
 async def get_stream(
     stream_id: UUID,

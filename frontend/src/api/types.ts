@@ -67,6 +67,8 @@ export type StreamEventListOut = {
   title: string
   start_date: string
   duration_days: number
+  ffkm_admin_tournament_id?: number | null
+  ffkm_admin_rank?: string | null
   locked_by_user_id: string | null
   /** Устар.: один оператор; при нескольких — assignment_summary */
   locked_by_display_name: string | null
@@ -132,6 +134,8 @@ export type StreamEventDetailOut = {
   title: string
   start_date: string
   duration_days: number
+  ffkm_admin_tournament_id?: number | null
+  ffkm_admin_rank?: string | null
   locked_by_user_id: string | null
   locked_by_display_name: string | null
   day_assignments: DayAssignmentOut[]

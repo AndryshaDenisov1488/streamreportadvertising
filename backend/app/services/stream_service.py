@@ -341,6 +341,8 @@ async def list_stream_events(
                 title=ev.title,
                 start_date=ev.start_date,
                 duration_days=ev.duration_days,
+                ffkm_admin_tournament_id=ev.ffkm_admin_tournament_id,
+                ffkm_admin_rank=ev.ffkm_admin_rank,
                 locked_by_user_id=ev.locked_by_user_id,
                 locked_by_display_name=locked_by_display_name,
                 assignment_summary=summary,
@@ -411,6 +413,8 @@ async def get_stream_event_detail(session: AsyncSession, stream_id: UUID) -> Str
         title=ev.title,
         start_date=ev.start_date,
         duration_days=ev.duration_days,
+        ffkm_admin_tournament_id=ev.ffkm_admin_tournament_id,
+        ffkm_admin_rank=ev.ffkm_admin_rank,
         locked_by_user_id=ev.locked_by_user_id,
         locked_by_display_name=locked_by_display_name,
         day_assignments=day_assignments,
@@ -521,6 +525,7 @@ async def create_stream_event(session: AsyncSession, *, actor: User, data: Strea
 
 async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: UUID, data: StreamEventUpdate) -> StreamEventDetailOut:
     ev = await _get_event(session, stream_id)
+    before_urls = {(d.day_index, (d.stream_url or "").strip()) for d in ev.days}
     before = {
         "title": ev.title,
         "start_date": str(ev.start_date),
@@ -552,7 +557,20 @@ async def update_stream_event(session: AsyncSession, *, actor: User, stream_id: 
         },
     )
     await session.commit()
-    return await get_stream_event_detail(session, stream_id)
+    detail = await get_stream_event_detail(session, stream_id)
+    after_urls = {(d.day_index, (d.stream_url or "").strip()) for d in detail.days}
+    urls_changed = before_urls != after_urls
+
+    from app.services.ffkm_stream_push import push_stream_urls_to_ffkm_admin
+    from app.services.ffkm_tournament_sync import ensure_ffkm_link_for_stream_locked
+
+    await ensure_ffkm_link_for_stream_locked(session, stream_id)
+    detail = await get_stream_event_detail(session, stream_id)
+    if detail.ffkm_admin_tournament_id is not None and (
+        urls_changed or any((d.stream_url or "").strip() for d in detail.days)
+    ):
+        await push_stream_urls_to_ffkm_admin(session, stream_id)
+    return detail
 
 
 async def delete_stream_event(session: AsyncSession, *, actor: User, stream_id: UUID) -> None:
