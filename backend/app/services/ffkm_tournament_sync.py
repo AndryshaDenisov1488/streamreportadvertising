@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
@@ -19,6 +21,12 @@ from app.services.ffkm_admin_client import FfkmAdminClient, FfkmAdminClientError
 logger = logging.getLogger(__name__)
 
 EXCLUDED_RANKS = frozenset({"official_physical_culture"})
+OFFICIAL_PHYSICAL_CULTURE_TITLE_EXCEPTIONS = frozenset(
+    {
+        "\u043e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0435 \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435 \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0435 \u043b\u0435\u0434\u043e\u0432\u044b\u0435 \u043c\u0435\u0447\u0442\u044b",
+        "\u043e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0435 \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435 \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0435 \u043b\u0435\u0434\u043e\u0432\u044b\u0435 \u043c\u0435\u0447\u0442\u044b \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435",
+    }
+)
 KEEP_RANKS = frozenset(
     {
         "official_sports_significant",
@@ -77,6 +85,23 @@ def should_keep_rank(rank: Any) -> bool:
     if normalized in EXCLUDED_RANKS:
         return False
     return normalized in KEEP_RANKS
+
+
+def should_keep_tournament(item: dict[str, Any]) -> bool:
+    """Keep the one approved physical-culture event without widening the rank filter."""
+    rank = normalize_rank(item.get("rank"))
+    if rank == "official_physical_culture":
+        return (
+            normalize_physical_culture_exception_title(str(item.get("title") or ""))
+            in OFFICIAL_PHYSICAL_CULTURE_TITLE_EXCEPTIONS
+        )
+    return should_keep_rank(rank)
+
+
+def normalize_physical_culture_exception_title(title: str) -> str:
+    """Normalize a known exception independently from matching display titles."""
+    text = unicodedata.normalize("NFKC", title or "").casefold().replace("ё", "е")
+    return " ".join(re.findall(r"[\w]+", text, flags=re.UNICODE))
 
 
 def parse_sync_from_date(raw: str | None = None) -> date:
@@ -157,7 +182,7 @@ def linkable_tournament_items(
     boundary = from_date or parse_sync_from_date()
     result: list[dict[str, Any]] = []
     for item in items:
-        if not should_keep_rank(item.get("rank")):
+        if not should_keep_tournament(item):
             continue
         try:
             start = _parse_item_date(item.get("start_date"))
@@ -348,10 +373,11 @@ async def sync_tournaments_from_ffkm_admin(
                 continue
             tournament_id = int(tid_raw)
             rank = item.get("rank")
-            if normalize_rank(rank) in EXCLUDED_RANKS:
+            rank_normalized = normalize_rank(rank)
+            if rank_normalized in EXCLUDED_RANKS and not should_keep_tournament(item):
                 stats.skipped_physical += 1
                 continue
-            if not should_keep_rank(rank):
+            if not should_keep_tournament(item):
                 stats.skipped_rank += 1
                 continue
 
