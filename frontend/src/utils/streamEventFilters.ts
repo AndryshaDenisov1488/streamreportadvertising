@@ -58,13 +58,20 @@ export const sortEventsUpcoming = (events: StreamEventListOut[], today = dayjs()
   return [...events].sort((a, b) => {
     const aStart = dayjs(a.start_date).startOf('day')
     const bStart = dayjs(b.start_date).startOf('day')
-    const aFuture = !aStart.isBefore(todayStart, 'day')
-    const bFuture = !bStart.isBefore(todayStart, 'day')
+    const aEnd = eventEndDay(a)
+    const bEnd = eventEndDay(b)
+    // Турнир остаётся текущим до конца последнего календарного дня.
+    const aFuture = !aEnd.isBefore(todayStart, 'day')
+    const bFuture = !bEnd.isBefore(todayStart, 'day')
     if (aFuture !== bFuture) {
       return aFuture ? -1 : 1
     }
-    const aDist = Math.abs(aStart.diff(todayStart, 'day'))
-    const bDist = Math.abs(bStart.diff(todayStart, 'day'))
+    const aDist = aFuture
+      ? Math.max(aStart.diff(todayStart, 'day'), 0)
+      : Math.abs(aEnd.diff(todayStart, 'day'))
+    const bDist = bFuture
+      ? Math.max(bStart.diff(todayStart, 'day'), 0)
+      : Math.abs(bEnd.diff(todayStart, 'day'))
     if (aDist !== bDist) {
       return aDist - bDist
     }
