@@ -16,6 +16,7 @@ from app.services.ffkm_tournament_sync import (
     link_manual_stream_events,
     normalize_rank,
     should_keep_rank,
+    should_keep_tournament,
     sync_tournaments_from_ffkm_admin,
     run_ffkm_sync_locked,
     titles_match,
@@ -46,6 +47,27 @@ def test_should_keep_rank_filters_physical():
     assert should_keep_rank("official_physical_culture") is False
     assert should_keep_rank(None) is False
     assert should_keep_rank("unknown") is False
+
+
+def test_should_keep_only_the_approved_physical_culture_event():
+    assert should_keep_tournament(
+        {
+            "rank": "official_physical_culture",
+            "title": "  \u041e\u0424\u0418\u0426\u0418\u0410\u041b\u042c\u041d\u041e\u0415\u00a0\u0424\u0418\u0417\u041a\u0423\u041b\u042c\u0422\u0423\u0420\u041d\u041e\u0415   \u041c\u0415\u0420\u041e\u041f\u0420\u0418\u042f\u0422\u0418\u0415 \u00ab\u041b\u0435\u0434\u043e\u0432\u044b\u0435 \u043c\u0435\u0447\u0442\u044b\u00bb ",
+        }
+    ) is True
+    assert should_keep_tournament(
+        {
+            "rank": "official_physical_culture",
+            "title": "\u041e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0435 \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435 \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0435 \u041b\u0435\u0434\u043e\u0432\u044b\u0435 \u043c\u0435\u0447\u0442\u044b \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435",
+        }
+    ) is True
+    assert should_keep_tournament(
+        {
+            "rank": "official_physical_culture",
+            "title": "\u041e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0435 \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435 \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0435 \u041b\u0435\u0434\u043e\u0432\u044b\u0435 \u043d\u0430\u0434\u0435\u0436\u0434\u044b",
+        }
+    ) is False
 
 
 def test_normalize_rank():
@@ -154,7 +176,14 @@ class _SyncSession:
                 [event for event in self.events if event.ffkm_admin_tournament_id is not None]
             )
         if "ffkm_admin_tournament_id =" in sql:
-            return _ScalarResult(self.events)
+            tournament_id = next(iter(statement.compile().params.values()))
+            return _ScalarResult(
+                [
+                    event
+                    for event in self.events
+                    if event.ffkm_admin_tournament_id == tournament_id
+                ]
+            )
         if "WHERE stream_events.id =" in sql:
             return _ScalarResult(self.events)
         raise AssertionError(f"Unexpected statement: {sql}")
@@ -198,6 +227,13 @@ class _FfkmClient:
                 "end_date": "2026-09-20",
                 "rank": "official_physical_culture",
             },
+            {
+                "id": 2026091903,
+                "title": "Официальное физкультурное мероприятие Ледовые мечты",
+                "start_date": "2026-09-19",
+                "end_date": "2026-09-20",
+                "rank": "official_physical_culture",
+            },
         ]
 
 
@@ -210,18 +246,21 @@ async def test_grinkov_all_russian_two_day_sync_is_idempotent(monkeypatch):
     first = await sync_tournaments_from_ffkm_admin(session, client=client)  # type: ignore[arg-type]
     second = await sync_tournaments_from_ffkm_admin(session, client=client)  # type: ignore[arg-type]
 
-    assert first.created == 1
+    assert first.created == 2
     assert first.skipped_physical == 1
     assert second.created == 0
     assert second.updated == 0
     assert second.skipped_physical == 1
-    assert len(session.events) == 1
-    event = session.events[0]
+    assert len(session.events) == 2
+    event = next(event for event in session.events if event.ffkm_admin_tournament_id == 2026091901)
     assert event.title == "Памяти Олимпийского чемпиона С. Гринькова"
     assert event.start_date == date(2026, 9, 19)
     assert event.duration_days == 2
     assert event.ffkm_admin_rank == "all_russian"
     assert [day.day_index for day in event.days] == [1, 2]
+    dreams = next(event for event in session.events if event.ffkm_admin_tournament_id == 2026091903)
+    assert dreams.title == "Официальное физкультурное мероприятие Ледовые мечты"
+    assert dreams.ffkm_admin_rank == "official_physical_culture"
 
 
 @pytest.mark.asyncio
@@ -244,8 +283,8 @@ async def test_sync_prefers_matching_manual_event_before_unique_upsert():
     )
 
     assert stats.linked_manual == 1
-    assert stats.created == 0
-    assert len(session.events) == 1
+    assert stats.created == 1
+    assert len(session.events) == 2
     assert session.events[0] is manual
     assert manual.ffkm_admin_tournament_id == 2026091901
     assert manual.duration_days == 2
