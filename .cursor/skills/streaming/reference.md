@@ -2619,6 +2619,7 @@ Mainstream_logo_Black and 1
 | Аудит | Выгрузка **CSV** (`GET /api/v1/audit-logs/export.csv`), очистка `POST /audit-logs/purge` |
 | Продуктовая аналитика | `POST /analytics/events`, сводка `/analytics/summary` (суперадмин, вкладка «Продукт») |
 | Приглашения | `POST /users/invites`, регистрация `POST /auth/accept-invite` |
+| Как работать | Шапка «Как работать», маршрут `/help`: пошаговая инструкция по роли. День берёт оператор кнопкой «Взять в работу» |
 | Чек-лист эфира | `GET/PUT /stream-events/{id}/days/{day}/checklist` (6 пунктов, отдельно на каждый день) |
 | PWA | `vite-plugin-pwa` — офлайн-кэш статики |
 | E2E | Playwright: `npm run test:e2e` в `frontend` (нужен стенд, см. ниже) |
@@ -27603,6 +27604,7 @@ Mainstream_logo_Black and 1
 | Аудит | Выгрузка **CSV** (`GET /api/v1/audit-logs/export.csv`), очистка `POST /audit-logs/purge` |
 | Продуктовая аналитика | `POST /analytics/events`, сводка `/analytics/summary` (суперадмин, вкладка «Продукт») |
 | Приглашения | `POST /users/invites`, регистрация `POST /auth/accept-invite` |
+| Как работать | Шапка «Как работать», маршрут `/help`: пошаговая инструкция по роли. День берёт оператор кнопкой «Взять в работу» |
 | Чек-лист эфира | `GET/PUT /stream-events/{id}/days/{day}/checklist` (6 пунктов, отдельно на каждый день) |
 | PWA | `vite-plugin-pwa` — офлайн-кэш статики |
 | E2E | Playwright: `npm run test:e2e` в `frontend` (нужен стенд, см. ниже) |

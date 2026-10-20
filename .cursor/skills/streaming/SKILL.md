@@ -26,6 +26,7 @@ description: >-
 |--|--|
 | Путь | `/opt/streaming` |
 | URL | https://streaming.mainstreamfs.ru |
+| Инструкция | Шапка «Как работать» (`/help`), текст по роли в `frontend/src/content/onboardingRoleGuides.tsx` |
 | Порт | 8010 (Uvicorn) |
 | БД | PostgreSQL: streaming |
 | Systemd | `streaming-backend` |
