@@ -2621,6 +2621,7 @@ Mainstream_logo_Black and 1
 | Аудит | Выгрузка **CSV** (`GET /api/v1/audit-logs/export.csv`), очистка `POST /audit-logs/purge` |
 | Продуктовая аналитика | `POST /analytics/events`, сводка `/analytics/summary` (суперадмин, вкладка «Продукт») |
 | Приглашения | `POST /users/invites`, регистрация `POST /auth/accept-invite` |
+| Как работать | Шапка «Как работать», маршрут `/help`: пошаговая инструкция по роли. День берёт оператор кнопкой «Взять в работу» |
 | Чек-лист эфира | `GET/PUT /stream-events/{id}/days/{day}/checklist` (6 пунктов, отдельно на каждый день) |
 | PWA | `vite-plugin-pwa` — офлайн-кэш статики |
 | E2E | Playwright: `npm run test:e2e` в `frontend` (нужен стенд, см. ниже) |
@@ -21829,8 +21830,7 @@ export const PrimaryRoleTraining: React.FC<{ role: UserRole }> = ({ role }) => {
           </li>
         </ol>
         <Typography.Paragraph type="secondary" style={{ marginTop: 14, marginBottom: 0, fontSize: 13 }}>
-          Назначение операторов на конкретные дни согласуется вне этой панели; в пульте оператор затем жмёт{' '}
-          <Kbd>Взять в работу</Kbd> по свободным дням.
+          День за собой берёт оператор кнопкой «Взять в работу». Назначать операторов на дни в этой панели не нужно.
         </Typography.Paragraph>
       </div>
     )
@@ -27669,6 +27669,7 @@ Mainstream_logo_Black and 1
 | Аудит | Выгрузка **CSV** (`GET /api/v1/audit-logs/export.csv`), очистка `POST /audit-logs/purge` |
 | Продуктовая аналитика | `POST /analytics/events`, сводка `/analytics/summary` (суперадмин, вкладка «Продукт») |
 | Приглашения | `POST /users/invites`, регистрация `POST /auth/accept-invite` |
+| Как работать | Шапка «Как работать», маршрут `/help`: пошаговая инструкция по роли. День берёт оператор кнопкой «Взять в работу» |
 | Чек-лист эфира | `GET/PUT /stream-events/{id}/days/{day}/checklist` (6 пунктов, отдельно на каждый день) |
 | PWA | `vite-plugin-pwa` — офлайн-кэш статики |
 | E2E | Playwright: `npm run test:e2e` в `frontend` (нужен стенд, см. ниже) |

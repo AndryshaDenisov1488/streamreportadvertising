@@ -140,6 +140,11 @@ export const DashboardPage: React.FC = () => {
                 <Button size="large">Администрирование</Button>
               </Link>
             ) : null}
+            <Link to="/help">
+              <Button size="large" type="primary">
+                Как работать
+              </Button>
+            </Link>
             <Link to="/profile">
               <Button size="large">Профиль и безопасность</Button>
             </Link>

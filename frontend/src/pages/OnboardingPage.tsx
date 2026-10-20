@@ -53,7 +53,7 @@ export const OnboardingPage: React.FC = () => {
     try {
       await patchProfileRequest({ onboarding_completed: true })
       await refreshMe()
-      message.info('Ознакомление пропущено — всё можно настроить позже в «Профиль»')
+      message.info('Инструкция останется в шапке: пункт «Как работать»')
       nav('/dashboard', { replace: true })
     } catch (e) {
       message.error(e instanceof Error ? e.message : 'Ошибка')

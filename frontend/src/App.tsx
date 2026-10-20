@@ -13,6 +13,7 @@ import { OperatorEventPage } from '@/pages/OperatorEventPage'
 import { OperatorHomePage } from '@/pages/OperatorHomePage'
 import { RoleHome } from '@/pages/RoleHome'
 import { FirstLoginPasswordPage } from '@/pages/FirstLoginPasswordPage'
+import { HelpPage } from '@/pages/HelpPage'
 import { OnboardingPage } from '@/pages/OnboardingPage'
 import { SuperadminPage } from '@/pages/SuperadminPage'
 
@@ -59,6 +60,14 @@ export const App: React.FC = () => {
         element={
           <ProtectedRoute>
             <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/help"
+        element={
+          <ProtectedRoute>
+            <HelpPage />
           </ProtectedRoute>
         }
       />

@@ -78,6 +78,9 @@ export const AppLayout: React.FC<{ children: React.ReactNode; nav?: React.ReactN
           <Link to="/profile" style={{ color: '#475569', fontSize: isNarrow ? 14 : 13 }}>
             Профиль
           </Link>
+          <Link to="/help" style={{ color: '#0284c7', fontWeight: 600, fontSize: isNarrow ? 14 : 13 }}>
+            Как работать
+          </Link>
           {user?.role === 'SUPERADMIN' ? (
             <Space size="small" wrap>
               <Link to="/admin" style={{ color: '#475569', fontSize: isNarrow ? 14 : 13 }}>
