@@ -1,4 +1,4 @@
-import { App as AntApp, Card, Col, Empty, Row, Space, Tag, Typography } from 'antd'
+import { Alert, App as AntApp, Card, Col, Empty, Row, Space, Tag, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -78,6 +78,20 @@ export const OperatorHomePage: React.FC = () => {
         Ближайшие турниры выбранного сезона. Можно взять свободные дни; если все дни заняты — карточка
         приглушена.
       </Typography.Paragraph>
+
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="Как вести эфир"
+        description={
+          <span>
+            Возьмите день, скопируйте ссылку и ключ, нажмите «Начать эфир», отмечайте упоминания и в конце —
+            «Остановить эфир».{' '}
+            <Link to="/help">Полная инструкция</Link>
+          </span>
+        }
+      />
 
       <StreamEventsFilterBar
         seasonFilter={seasonFilter}
