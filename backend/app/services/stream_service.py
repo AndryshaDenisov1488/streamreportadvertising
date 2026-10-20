@@ -297,7 +297,9 @@ async def list_stream_events(
     active_ids = await _active_broadcast_ids(session)
     ended_ids = await _ended_broadcast_ids(session)
     ended_days_by_event = await _ended_broadcast_days_by_event(session)
-    result = await session.execute(select(StreamEvent).order_by(StreamEvent.start_date.desc(), StreamEvent.created_at.desc()))
+    result = await session.execute(
+        select(StreamEvent).order_by(StreamEvent.start_date.asc(), StreamEvent.created_at.asc())
+    )
     events = list(result.scalars().all())
     eids = [e.id for e in events]
     days_by_event: dict[UUID, list[StreamDay]] = defaultdict(list)

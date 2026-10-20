@@ -13,6 +13,7 @@ from app.core.timezone import format_moscow_datetime, utc_now
 from app.db.session import AsyncSessionLocal
 from app.models.stream import BroadcastSession, StreamEvent
 from app.models.user import User
+from app.services.background_lock import LOCK_LONG_BROADCAST_ALERTS, run_if_leader
 from app.services.email_html_layout import wrap_email_html
 from app.utils.display_name import user_display_name
 
@@ -111,6 +112,7 @@ async def check_long_running_broadcasts(session: AsyncSession) -> int:
         .join(StreamEvent, BroadcastSession.stream_event_id == StreamEvent.id)
         .join(User, BroadcastSession.operator_id == User.id)
         .where(BroadcastSession.ended_at.is_(None), User.is_active.is_(True))
+        .with_for_update(of=BroadcastSession, skip_locked=True)
     )
     sent_count = 0
     for bs, ev, operator in result.all():
@@ -132,17 +134,19 @@ async def check_long_running_broadcasts(session: AsyncSession) -> int:
             elapsed_hours=reached_threshold,
         )
         bs.duration_alert_last_sent_hour = reached_threshold
-        sent_count += 1
-    if sent_count > 0:
         await session.commit()
+        sent_count += 1
     return sent_count
 
 
 async def job_long_broadcast_alerts() -> None:
-    try:
+    async def _run() -> None:
         async with AsyncSessionLocal() as session:
             sent_count = await check_long_running_broadcasts(session)
             if sent_count > 0:
                 logger.info("Отправлены предупреждения по длительным эфирам: %s", sent_count)
+
+    try:
+        await run_if_leader(LOCK_LONG_BROADCAST_ALERTS, _run)
     except Exception:
         logger.exception("Ошибка фоновой проверки длительных эфиров")

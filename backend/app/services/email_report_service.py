@@ -15,9 +15,23 @@ from app.core.timezone import MOSCOW_TZ, format_moscow_date
 from app.models.enums import UserRole
 from app.models.stream import StreamDayAssignment, StreamEvent
 from app.models.user import User
+from app.services.background_lock import LOCK_MONTHLY_REPORT, LOCK_WEEKLY_REPORT, run_if_leader
 from app.services.email_html_layout import wrap_email_html
 from app.services.report_service import export_mentions_docx
 from app.services.stream_service import _assignment_summary_from_pairs, _load_assignment_pairs
+
+
+def event_overlaps_period(
+    *,
+    start_date: date,
+    duration_days: int,
+    date_from: date,
+    date_to: date,
+) -> bool:
+    """True, если календарные дни мероприятия пересекаются с [date_from, date_to] (МСК)."""
+    days = max(duration_days, 1)
+    end_date = start_date + timedelta(days=days - 1)
+    return start_date <= date_to and end_date >= date_from
 
 
 def _send_smtp_sync(
@@ -69,7 +83,16 @@ async def _recipient_emails(session: AsyncSession) -> list[str]:
 
 async def _html_digest(session: AsyncSession, *, date_from: date, date_to: date) -> str:
     r = await session.execute(select(StreamEvent).order_by(StreamEvent.start_date.desc()))
-    events = list(r.scalars().all())
+    events = [
+        ev
+        for ev in r.scalars().all()
+        if event_overlaps_period(
+            start_date=ev.start_date,
+            duration_days=ev.duration_days,
+            date_from=date_from,
+            date_to=date_to,
+        )
+    ]
     eids = [e.id for e in events]
     pairs_by = await _load_assignment_pairs(session, eids)
     rows: list[str] = []
@@ -84,6 +107,11 @@ async def _html_digest(session: AsyncSession, *, date_from: date, date_to: date)
             f'<td style="border-bottom:1px solid #2a3f5c;padding:6px 8px">{html.escape(summary)}</td>'
             "</tr>"
         )
+    if not rows:
+        rows = [
+            '<tr><td colspan="4" style="border-bottom:1px solid #2a3f5c;padding:10px 8px;color:#8b9cb0">'
+            "За период нет мероприятий в календаре.</td></tr>"
+        ]
     inner = (
         f"<p style=\"margin:0 0 14px\">Период (МСК): {format_moscow_date(date_from)} — "
         f"{format_moscow_date(date_to)}</p>"
@@ -166,26 +194,32 @@ def previous_month_bounds(today: date) -> tuple[date, date]:
 async def job_weekly_report() -> None:
     from app.db.session import AsyncSessionLocal
 
-    now_m = datetime.now(MOSCOW_TZ).date()
-    d0, d1 = previous_week_moscow_bounds(now_m)
-    async with AsyncSessionLocal() as session:
-        await send_period_report_email(
-            session,
-            date_from=d0,
-            date_to=d1,
-            subject_prefix="[MainStream] Недельный отчёт",
-        )
+    async def _run() -> None:
+        now_m = datetime.now(MOSCOW_TZ).date()
+        d0, d1 = previous_week_moscow_bounds(now_m)
+        async with AsyncSessionLocal() as session:
+            await send_period_report_email(
+                session,
+                date_from=d0,
+                date_to=d1,
+                subject_prefix="[MainStream] Недельный отчёт",
+            )
+
+    await run_if_leader(LOCK_WEEKLY_REPORT, _run)
 
 
 async def job_monthly_report() -> None:
     from app.db.session import AsyncSessionLocal
 
-    now_m = datetime.now(MOSCOW_TZ).date()
-    d0, d1 = previous_month_bounds(now_m)
-    async with AsyncSessionLocal() as session:
-        await send_period_report_email(
-            session,
-            date_from=d0,
-            date_to=d1,
-            subject_prefix="[MainStream] Месячный отчёт",
-        )
+    async def _run() -> None:
+        now_m = datetime.now(MOSCOW_TZ).date()
+        d0, d1 = previous_month_bounds(now_m)
+        async with AsyncSessionLocal() as session:
+            await send_period_report_email(
+                session,
+                date_from=d0,
+                date_to=d1,
+                subject_prefix="[MainStream] Месячный отчёт",
+            )
+
+    await run_if_leader(LOCK_MONTHLY_REPORT, _run)

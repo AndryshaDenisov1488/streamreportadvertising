@@ -1,8 +1,16 @@
-import { CopyOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons'
+import {
+  CloudSyncOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  PlusOutlined,
+  SaveOutlined,
+} from '@ant-design/icons'
 import {
   App as AntApp,
   Button,
   Card,
+  Collapse,
   DatePicker,
   Form,
   Grid,
@@ -18,10 +26,10 @@ import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import 'dayjs/locale/ru'
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import type { StreamEventListOut, StreamEventTemplateOut } from '@/api/types'
+import type { FfkmAdminSyncResult, StreamEventListOut, StreamEventTemplateOut } from '@/api/types'
 import {
   apiFetch,
   createTemplateFromEventRequest,
@@ -29,9 +37,23 @@ import {
   instantiateTemplateRequest,
   listEventTemplatesRequest,
 } from '@/api/client'
+import { ManagerOverviewPanel } from '@/components/ManagerOverviewPanel'
 import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
+import { StreamEventsFilterBar } from '@/components/StreamEventsFilterBar'
 import { AppLayout } from '@/layouts/AppLayout'
 import { formatDateRu } from '@/utils/datetime'
+import {
+  categoryLabel,
+  filterStreamEvents,
+  inferStreamCategory,
+  type StreamCategory,
+} from '@/utils/streamEventFilters'
+import {
+  currentSeasonYear,
+  rangeForSeasonFilter,
+  seasonsFromEvents,
+  type SeasonFilter,
+} from '@/utils/season'
 
 dayjs.locale('ru')
 
@@ -67,6 +89,8 @@ export const ManagerStreamsPage: React.FC = () => {
   const [reportForm] = Form.useForm()
   const [tplNameForm] = Form.useForm()
   const [instantiateForm] = Form.useForm()
+  const [seasonFilter, setSeasonFilter] = useState<SeasonFilter>(() => currentSeasonYear())
+  const [category, setCategory] = useState<StreamCategory>('official_sports_significant')
 
   const { data, isLoading } = useQuery({
     queryKey: ['streams'],
@@ -76,6 +100,21 @@ export const ManagerStreamsPage: React.FC = () => {
   const { data: templates, isLoading: tplLoading } = useQuery({
     queryKey: ['stream-event-templates'],
     queryFn: listEventTemplatesRequest,
+  })
+
+  const syncFfkmMut = useMutation({
+    mutationFn: async () =>
+      (await apiFetch('/stream-events/sync/ffkm-admin', { method: 'POST' })) as FfkmAdminSyncResult,
+    onSuccess: async (r) => {
+      message.success(
+        `ffkm-admin: создано ${r.created}, обновлено ${r.updated}, привязано вручную ${r.linked_manual ?? 0}, ссылки отправлены ${r.pushed_urls ?? 0}/${r.push_attempted ?? 0}`,
+      )
+      if (r.errors?.length) {
+        message.warning(`Ошибки: ${r.errors.slice(0, 3).join('; ')}`)
+      }
+      await qc.invalidateQueries({ queryKey: ['streams'] })
+    },
+    onError: (e: Error) => message.error(e.message || 'Не удалось синхронизировать календарь'),
   })
 
   const createMut = useMutation({
@@ -194,6 +233,23 @@ export const ManagerStreamsPage: React.FC = () => {
     onError: (e: Error) => message.error(e.message),
   })
 
+  const seasonsAvailable = useMemo(
+    () => seasonsFromEvents((data ?? []).map((ev) => ev.start_date)),
+    [data],
+  )
+
+  const range = useMemo(() => rangeForSeasonFilter(seasonFilter), [seasonFilter])
+
+  const filteredEvents = useMemo(
+    () =>
+      filterStreamEvents(data ?? [], {
+        rangeStart: range[0],
+        rangeEnd: range[1],
+        category,
+      }),
+    [data, range, category],
+  )
+
   const columns: ColumnsType<StreamEventListOut> = [
     { title: 'Название', dataIndex: 'title', key: 'title' },
     {
@@ -204,6 +260,31 @@ export const ManagerStreamsPage: React.FC = () => {
       render: (v: string) => formatDateRu(v),
     },
     { title: 'Дней', dataIndex: 'duration_days', key: 'duration_days', width: 90 },
+    {
+      title: 'Категория',
+      key: 'category',
+      width: 170,
+      render: (_, r) => (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {categoryLabel(inferStreamCategory(r))}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: 'Источник',
+      key: 'source',
+      width: 110,
+      render: (_, r) =>
+        r.ffkm_admin_tournament_id ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            ffkm-admin #{r.ffkm_admin_tournament_id}
+          </Typography.Text>
+        ) : (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            вручную
+          </Typography.Text>
+        ),
+    },
     {
       title: 'Статус',
       key: 'status',
@@ -361,12 +442,23 @@ export const ManagerStreamsPage: React.FC = () => {
       }
     >
       <Card
-        title="Статистика операторов"
+        title="Оперативная сводка"
         style={{ marginBottom: 16, borderColor: '#e2e8f0', background: '#ffffff' }}
         styles={{ header: { borderBottom: '1px solid #e2e8f0' } }}
       >
-        <OperatorStatsPanel compact />
+        <ManagerOverviewPanel events={data ?? []} category={category} />
       </Card>
+
+      <Collapse
+        style={{ marginBottom: 16 }}
+        items={[
+          {
+            key: 'stats',
+            label: 'Подробная статистика операторов',
+            children: <OperatorStatsPanel compact />,
+          },
+        ]}
+      />
 
       <Card
         title="Шаблоны мероприятий"
@@ -401,11 +493,20 @@ export const ManagerStreamsPage: React.FC = () => {
             Мероприятия
           </Typography.Title>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            Создание, шаблоны, отчёты — Word, CSV и Excel. Колонка «Трансляция» — копирование ссылки на трансляцию по
-            дням без захода в карточку.
+            Календарь подтягивается из ffkm-admin. Ссылку на трансляцию, URL и ключ заполняете здесь — ссылка уходит в
+            ffkm-admin и на сайт автоматически.
           </Typography.Paragraph>
         </div>
         <Space wrap style={{ width: isNarrow ? '100%' : undefined }}>
+          <Button
+            icon={<CloudSyncOutlined />}
+            loading={syncFfkmMut.isPending}
+            onClick={() => syncFfkmMut.mutate()}
+            block={isNarrow}
+            size="large"
+          >
+            Синхронизировать ffkm-admin
+          </Button>
           <Button icon={<DownloadOutlined />} onClick={() => setReportOpen(true)} block={isNarrow} size="large">
             Экспорт отчёта
           </Button>
@@ -415,15 +516,25 @@ export const ManagerStreamsPage: React.FC = () => {
         </Space>
       </Space>
 
+      <StreamEventsFilterBar
+        seasonFilter={seasonFilter}
+        onSeasonFilterChange={setSeasonFilter}
+        seasonsAvailable={seasonsAvailable}
+        category={category}
+        onCategoryChange={setCategory}
+        resultCount={filteredEvents.length}
+      />
+
       <Card style={{ borderColor: '#e2e8f0', background: '#ffffff' }}>
         <Table
           rowKey="id"
           loading={isLoading}
-          dataSource={data ?? []}
+          dataSource={filteredEvents}
           columns={columns}
           pagination={{ pageSize: 10 }}
           scroll={{ x: 1000 }}
           size={isNarrow ? 'small' : 'middle'}
+          locale={{ emptyText: 'Нет мероприятий в выбранном сезоне' }}
         />
       </Card>
 
