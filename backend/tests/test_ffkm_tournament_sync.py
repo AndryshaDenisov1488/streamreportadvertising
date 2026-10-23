@@ -49,25 +49,41 @@ def test_should_keep_rank_filters_physical():
     assert should_keep_rank("unknown") is False
 
 
-def test_should_keep_only_the_approved_physical_culture_event():
+def test_unpaired_physical_culture_and_existing_exception_are_kept():
     assert should_keep_tournament(
         {
             "rank": "official_physical_culture",
             "title": "  \u041e\u0424\u0418\u0426\u0418\u0410\u041b\u042c\u041d\u041e\u0415\u00a0\u0424\u0418\u0417\u041a\u0423\u041b\u042c\u0422\u0423\u0420\u041d\u041e\u0415   \u041c\u0415\u0420\u041e\u041f\u0420\u0418\u042f\u0422\u0418\u0415 \u00ab\u041b\u0435\u0434\u043e\u0432\u044b\u0435 \u043c\u0435\u0447\u0442\u044b\u00bb ",
+            "paired_tournament_id": 123,
         }
     ) is True
     assert should_keep_tournament(
         {
             "rank": "official_physical_culture",
             "title": "\u041e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0435 \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435 \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0435 \u041b\u0435\u0434\u043e\u0432\u044b\u0435 \u043c\u0435\u0447\u0442\u044b \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435",
+            "paired_tournament_id": 123,
         }
     ) is True
     assert should_keep_tournament(
         {
             "rank": "official_physical_culture",
             "title": "\u041e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u043e\u0435 \u0444\u0438\u0437\u043a\u0443\u043b\u044c\u0442\u0443\u0440\u043d\u043e\u0435 \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0435 \u041b\u0435\u0434\u043e\u0432\u044b\u0435 \u043d\u0430\u0434\u0435\u0436\u0434\u044b",
+            "paired_tournament_id": None,
+        }
+    ) is True
+    assert should_keep_tournament(
+        {
+            "rank": "official_physical_culture",
+            "title": "Официальное физкультурное мероприятие Ледовые надежды",
+            "paired_tournament_id": 123,
         }
     ) is False
+    assert should_keep_tournament(
+        {"rank": "official_physical_culture", "title": "Физкультурное мероприятие без поля пары"}
+    ) is False
+    assert should_keep_tournament(
+        {"rank": "official_physical_culture", "title": "Официальное физкультурное мероприятие Ледовые мечты"}
+    ) is True
 
 
 def test_normalize_rank():
@@ -226,6 +242,7 @@ class _FfkmClient:
                 "start_date": "2026-09-19",
                 "end_date": "2026-09-20",
                 "rank": "official_physical_culture",
+                "paired_tournament_id": 2026091901,
             },
             {
                 "id": 2026091903,
@@ -233,6 +250,15 @@ class _FfkmClient:
                 "start_date": "2026-09-19",
                 "end_date": "2026-09-20",
                 "rank": "official_physical_culture",
+                "paired_tournament_id": 2026091901,
+            },
+            {
+                "id": 2026091904,
+                "title": "Физкультурное мероприятие без спортивной пары",
+                "start_date": "2026-09-19",
+                "end_date": "2026-09-20",
+                "rank": "official_physical_culture",
+                "paired_tournament_id": None,
             },
         ]
 
@@ -246,12 +272,12 @@ async def test_grinkov_all_russian_two_day_sync_is_idempotent(monkeypatch):
     first = await sync_tournaments_from_ffkm_admin(session, client=client)  # type: ignore[arg-type]
     second = await sync_tournaments_from_ffkm_admin(session, client=client)  # type: ignore[arg-type]
 
-    assert first.created == 2
+    assert first.created == 3
     assert first.skipped_physical == 1
     assert second.created == 0
     assert second.updated == 0
     assert second.skipped_physical == 1
-    assert len(session.events) == 2
+    assert len(session.events) == 3
     event = next(event for event in session.events if event.ffkm_admin_tournament_id == 2026091901)
     assert event.title == "Памяти Олимпийского чемпиона С. Гринькова"
     assert event.start_date == date(2026, 9, 19)
@@ -261,6 +287,8 @@ async def test_grinkov_all_russian_two_day_sync_is_idempotent(monkeypatch):
     dreams = next(event for event in session.events if event.ffkm_admin_tournament_id == 2026091903)
     assert dreams.title == "Официальное физкультурное мероприятие Ледовые мечты"
     assert dreams.ffkm_admin_rank == "official_physical_culture"
+    unpaired = next(event for event in session.events if event.ffkm_admin_tournament_id == 2026091904)
+    assert unpaired.title == "Физкультурное мероприятие без спортивной пары"
 
 
 @pytest.mark.asyncio
@@ -283,8 +311,8 @@ async def test_sync_prefers_matching_manual_event_before_unique_upsert():
     )
 
     assert stats.linked_manual == 1
-    assert stats.created == 1
-    assert len(session.events) == 2
+    assert stats.created == 2
+    assert len(session.events) == 3
     assert session.events[0] is manual
     assert manual.ffkm_admin_tournament_id == 2026091901
     assert manual.duration_days == 2
@@ -311,6 +339,7 @@ async def test_manual_and_on_save_linking_reject_physical_and_old_tournaments():
             "start_date": "2026-09-19",
             "end_date": "2026-09-20",
             "rank": "official_physical_culture",
+            "paired_tournament_id": 999,
         },
         {
             "id": 56,
@@ -339,6 +368,43 @@ async def test_manual_and_on_save_linking_reject_physical_and_old_tournaments():
         is False
     )
     assert manual.ffkm_admin_tournament_id is None
+
+
+@pytest.mark.asyncio
+async def test_manual_and_on_save_link_unpaired_physical_tournament():
+    item = {
+        "id": 57,
+        "title": "Физкультурное мероприятие без пары",
+        "start_date": "2026-09-19",
+        "end_date": "2026-09-20",
+        "rank": "official_physical_culture",
+        "paired_tournament_id": None,
+    }
+
+    def manual_event():
+        event = StreamEvent(
+            id=uuid.uuid4(), title=item["title"], start_date=date(2026, 9, 19),
+            duration_days=2, ffkm_admin_tournament_id=None, ffkm_admin_rank=None,
+            created_by_id=None,
+        )
+        event.days = []
+        return event
+
+    session = _SyncSession()
+    manual = manual_event()
+    session.events.append(manual)
+    assert await link_manual_stream_events(session, [item], from_date=date(2026, 7, 1)) == 1  # type: ignore[arg-type]
+    assert manual.ffkm_admin_tournament_id == 57
+
+    class _Client:
+        async def iter_all_tournaments(self):
+            return [item]
+
+    on_save_session = _SyncSession()
+    on_save = manual_event()
+    on_save_session.events.append(on_save)
+    assert await ensure_ffkm_link_for_stream(on_save_session, on_save.id, client=_Client()) is True  # type: ignore[arg-type]
+    assert on_save.ffkm_admin_tournament_id == 57
 
 
 @pytest.mark.asyncio
