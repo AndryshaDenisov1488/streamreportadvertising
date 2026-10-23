@@ -88,11 +88,12 @@ def should_keep_rank(rank: Any) -> bool:
 
 
 def should_keep_tournament(item: dict[str, Any]) -> bool:
-    """Keep the one approved physical-culture event without widening the rank filter."""
+    """Keep unpaired physical-culture events and the existing title exception."""
     rank = normalize_rank(item.get("rank"))
     if rank == "official_physical_culture":
         return (
-            normalize_physical_culture_exception_title(str(item.get("title") or ""))
+            ("paired_tournament_id" in item and item["paired_tournament_id"] is None)
+            or normalize_physical_culture_exception_title(str(item.get("title") or ""))
             in OFFICIAL_PHYSICAL_CULTURE_TITLE_EXCEPTIONS
         )
     return should_keep_rank(rank)
