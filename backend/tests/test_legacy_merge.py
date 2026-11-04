@@ -70,6 +70,28 @@ def test_same_tournament_keeps_filled_stream_key_and_fills_blank_url() -> None:
     assert plan.assignment_skipped == 1
 
 
+def test_manual_event_links_to_legacy_by_title_and_date() -> None:
+    plan = build_merge_plan(
+        current_users=[],
+        legacy_users=[],
+        current_events=[{"id": "live", "title": "Кубок  Москвы", "start_date": "2026-11-20", "duration_days": 1, "ffkm_admin_tournament_id": None, "content_url": None, "ffkm_admin_rank": None}],
+        legacy_events=[{"id": "old", "title": "кубок москвы", "start_date": "2026-11-20", "duration_days": 1, "ffkm_admin_tournament_id": 77, "content_url": None, "ffkm_admin_rank": "all_russian"}],
+        current_days=[],
+        legacy_days=[],
+        current_assignments=[],
+        legacy_assignments=[],
+        current_sessions=[],
+        legacy_sessions=[],
+        current_mentions=[],
+        legacy_mentions=[],
+        current_adjustments=[],
+        legacy_adjustments=[],
+    )
+    assert plan.event_inserts == []
+    assert plan.event_remap["old"] == "live"
+    assert plan.event_fills == [{"id": "live", "ffkm_admin_rank": "all_russian", "ffkm_admin_tournament_id": 77}]
+
+
 def test_missing_day_is_added_and_duration_grows() -> None:
     plan = build_merge_plan(
         current_users=[],

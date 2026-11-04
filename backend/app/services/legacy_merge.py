@@ -30,6 +30,14 @@ def _email(row: dict[str, Any]) -> str:
     return str(row.get("email") or "").strip().lower()
 
 
+def _event_signature(row: dict[str, Any]) -> tuple[str, str] | None:
+    title = " ".join(str(row.get("title") or "").casefold().replace("ё", "е").split())
+    start = row.get("start_date")
+    if not title or start is None or is_blank(start):
+        return None
+    return title, str(start)[:10]
+
+
 @dataclass
 class MergePlan:
     user_inserts: list[dict[str, Any]] = field(default_factory=list)
@@ -178,22 +186,53 @@ def build_merge_plan(
     }
     inserted_event_ids: set[str] = set()
     events_by_id = {_key(row["id"]): row for row in current_events}
+    claimed_event_ids: set[str] = set()
+
+    def link_event(target: dict[str, Any], legacy_row: dict[str, Any], old_id: str) -> None:
+        target_id = _key(target["id"])
+        plan.event_remap[old_id] = target_id
+        claimed_event_ids.add(target_id)
+        patch = _blank_patch(
+            target,
+            legacy_row,
+            ("content_url", "ffkm_admin_rank", "ffkm_admin_tournament_id"),
+        )
+        if patch:
+            plan.event_fills.append({"id": target_id, **patch})
+            target.update(patch)
+            if patch.get("ffkm_admin_tournament_id") is not None:
+                by_tournament[patch["ffkm_admin_tournament_id"]] = target
 
     for row in legacy_events:
         old_id = _key(row["id"])
         if old_id in current_event_ids:
             plan.event_remap[old_id] = old_id
+            claimed_event_ids.add(old_id)
             continue
         tournament_id = row.get("ffkm_admin_tournament_id")
         if tournament_id is not None and tournament_id in by_tournament:
-            target = by_tournament[tournament_id]
-            target_id = _key(target["id"])
-            plan.event_remap[old_id] = target_id
-            patch = _blank_patch(target, row, ("content_url", "ffkm_admin_rank"))
-            if patch:
-                plan.event_fills.append({"id": target_id, **patch})
-                target.update(patch)
+            link_event(by_tournament[tournament_id], row, old_id)
             continue
+        signature = _event_signature(row)
+        if signature is not None:
+            candidates = []
+            for current in current_events:
+                current_id = _key(current["id"])
+                if current_id in claimed_event_ids or current_id in inserted_event_ids:
+                    continue
+                if _event_signature(current) != signature:
+                    continue
+                current_tournament = current.get("ffkm_admin_tournament_id")
+                if (
+                    current_tournament is not None
+                    and tournament_id is not None
+                    and current_tournament != tournament_id
+                ):
+                    continue
+                candidates.append(current)
+            if len(candidates) == 1:
+                link_event(candidates[0], row, old_id)
+                continue
         new_row = dict(row)
         if old_id in current_event_ids or old_id in inserted_event_ids:
             new_id = str(uuid.uuid4())
