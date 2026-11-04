@@ -11,7 +11,7 @@ from app.models.enums import UserRole
 from app.services.email_html_layout import wrap_email_html
 
 
-def _role_label_ru(role: UserRole) -> str:
+def role_label_ru(role: UserRole) -> str:
     return {
         UserRole.SUPERADMIN: "Суперадминистратор",
         UserRole.STREAM_MANAGER: "Менеджер стримов",
@@ -64,7 +64,7 @@ async def send_welcome_email(
         raise RuntimeError("SMTP не настроен (smtp_host пустой в .env)")
 
     base = (settings.app_public_base_url or "").strip().rstrip("/")
-    role_ru = _role_label_ru(role)
+    role_ru = role_label_ru(role)
     greeting = (first_name or "").strip() or "коллега"
     headline = f"Здравствуйте, {greeting}!"
 

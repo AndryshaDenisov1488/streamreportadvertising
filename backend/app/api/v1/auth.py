@@ -18,7 +18,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.profile import ChangePasswordIn, SessionOut
-from app.schemas.platform import AcceptInviteIn
+from app.schemas.platform import AcceptInviteIn, InvitePreviewOut
 from app.schemas.user import UserOut
 from app.services import auth_service, invite_service, password_reset_service
 from app.services.password_reset_email_service import send_password_reset_email_task
@@ -27,7 +27,28 @@ from app.utils.client_ip import client_ip_from_request
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+@router.get("/invite/preview", response_model=InvitePreviewOut)
+@limiter.limit("60/minute")
+async def invite_preview_route(
+    request: Request,
+    token: str | None = Query(None),
+    session: AsyncSession = Depends(get_db),
+) -> InvitePreviewOut:
+    if not token:
+        return InvitePreviewOut(ok=False)
+    invite = await invite_service.preview_invite(session, token.strip())
+    if invite is None:
+        return InvitePreviewOut(ok=False)
+    return InvitePreviewOut(
+        ok=True,
+        full_name=invite_service.invite_full_name(invite),
+        email=invite.email,
+        role=invite.role,
+    )
+
+
 @router.post("/accept-invite", response_model=TokenResponse)
+@limiter.limit("20/minute")
 async def accept_invite_route(
     request: Request,
     response: Response,

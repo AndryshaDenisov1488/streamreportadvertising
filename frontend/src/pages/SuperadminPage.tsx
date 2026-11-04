@@ -18,7 +18,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import React, { useEffect, useState } from 'react'
 
-import type { AuditLogOut, UserCreatedOut, UserOut } from '@/api/types'
+import type { AuditLogOut, UserOut, UserRole } from '@/api/types'
 import { apiFetch, getAccessToken } from '@/api/client'
 import { OperatorStatsPanel } from '@/components/OperatorStatsPanel'
 import { AppLayout } from '@/layouts/AppLayout'
@@ -39,6 +39,27 @@ type AnalyticsSummary = {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api/v1'
 
+const roleOptions: { label: string; value: UserRole }[] = [
+  { label: 'Оператор', value: 'OPERATOR' },
+  { label: 'Менеджер', value: 'STREAM_MANAGER' },
+  { label: 'Суперадминистратор', value: 'SUPERADMIN' },
+]
+
+const roleTitle: Record<UserRole, string> = {
+  OPERATOR: 'Оператор',
+  STREAM_MANAGER: 'Менеджер',
+  SUPERADMIN: 'Суперадминистратор',
+}
+
+type PendingInvite = {
+  id: string
+  email: string
+  full_name: string
+  role: UserRole
+  expires_at: string
+  created_at: string
+}
+
 export const SuperadminPage: React.FC = () => {
   const { message, modal } = AntApp.useApp()
   const qc = useQueryClient()
@@ -53,6 +74,11 @@ export const SuperadminPage: React.FC = () => {
   const usersQuery = useQuery({
     queryKey: ['users'],
     queryFn: async () => (await apiFetch('/users')) as UserOut[],
+  })
+
+  const invitesQuery = useQuery({
+    queryKey: ['user-invites'],
+    queryFn: async () => (await apiFetch('/users/invites')) as PendingInvite[],
   })
 
   const auditQuery = useQuery({
@@ -101,39 +127,21 @@ export const SuperadminPage: React.FC = () => {
   }, [editUser, editForm])
 
   const createMut = useMutation({
-    mutationFn: async (values: {
-      email: string
-      last_name: string
-      first_name: string
-      role: string
-      is_active: boolean
-    }) => {
-      const body = {
-        email: values.email,
-        last_name: values.last_name,
-        first_name: values.first_name,
-        role: values.role,
-        is_active: values.is_active,
-      }
-      return (await apiFetch('/users', {
+    mutationFn: async (values: { email: string; full_name: string; role: UserRole }) => {
+      await apiFetch('/users/invites', {
         method: 'POST',
-        body: JSON.stringify(body),
-      })) as UserCreatedOut
+        body: JSON.stringify({
+          email: values.email,
+          full_name: values.full_name,
+          role: values.role,
+        }),
+      })
     },
-    onSuccess: async (data) => {
-      if (data.welcome_email_queued) {
-        message.success('Пользователь создан. Приветственное письмо отправляется на email — подождите 1–2 минуты')
-      } else if (data.welcome_email_skipped_reason) {
-        message.warning(
-          `Пользователь создан. ${data.welcome_email_skipped_reason}`,
-          10,
-        )
-      } else {
-        message.success('Пользователь создан')
-      }
+    onSuccess: async () => {
+      message.success('Письмо отправлено. Учётка появится в списке, когда человек задаст пароль по ссылке')
       setUserOpen(false)
       createForm.resetFields()
-      await qc.invalidateQueries({ queryKey: ['users'] })
+      await qc.invalidateQueries({ queryKey: ['user-invites'] })
     },
     onError: (e: Error) => message.error(e.message),
   })
@@ -312,6 +320,37 @@ export const SuperadminPage: React.FC = () => {
                   </Button>
                 }
               >
+                {(invitesQuery.data?.length ?? 0) > 0 ? (
+                  <>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                      Письмо отправлено, пароль ещё не задан
+                    </Typography.Paragraph>
+                    <Table
+                      rowKey="id"
+                      loading={invitesQuery.isLoading}
+                      dataSource={invitesQuery.data ?? []}
+                      pagination={false}
+                      size="small"
+                      style={{ marginBottom: 16 }}
+                      columns={[
+                        { title: 'ФИО', dataIndex: 'full_name', key: 'full_name' },
+                        { title: 'Email', dataIndex: 'email', key: 'email' },
+                        {
+                          title: 'Роль',
+                          dataIndex: 'role',
+                          key: 'role',
+                          render: (role: UserRole) => roleTitle[role] ?? role,
+                        },
+                        {
+                          title: 'Ссылка до',
+                          dataIndex: 'expires_at',
+                          key: 'expires_at',
+                          render: (value: string) => formatDateTimeRu(value),
+                        },
+                      ]}
+                    />
+                  </>
+                ) : null}
                 <Table
                   rowKey="id"
                   loading={usersQuery.isLoading}
@@ -400,7 +439,7 @@ export const SuperadminPage: React.FC = () => {
       <Modal
         title="Новый пользователь"
         open={userOpen}
-        okText="Создать"
+        okText="Отправить письмо"
         cancelText="Отмена"
         confirmLoading={createMut.isPending}
         onCancel={() => setUserOpen(false)}
@@ -408,38 +447,39 @@ export const SuperadminPage: React.FC = () => {
           const v = await createForm.validateFields()
           await createMut.mutateAsync({
             email: v.email,
-            last_name: v.last_name,
-            first_name: v.first_name,
+            full_name: v.full_name,
             role: v.role,
-            is_active: v.is_active ?? true,
           })
         }}
       >
-        <Form form={createForm} layout="vertical" initialValues={{ is_active: true, role: 'OPERATOR' }}>
+        <Form form={createForm} layout="vertical" initialValues={{ role: 'OPERATOR' }}>
+          <Form.Item
+            name="full_name"
+            label="ФИО"
+            rules={[
+              { required: true, whitespace: true, message: 'Укажите фамилию и имя' },
+              {
+                validator: async (_, value: string) => {
+                  const parts = (value ?? '').trim().split(/\s+/).filter(Boolean)
+                  if (parts.length >= 2) {
+                    return
+                  }
+                  throw new Error('Укажите фамилию и имя')
+                },
+              },
+            ]}
+          >
+            <Input autoComplete="name" placeholder="Фамилия Имя Отчество" />
+          </Form.Item>
           <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
-            <Input />
+            <Input autoComplete="email" />
           </Form.Item>
-          <Form.Item name="last_name" label="Фамилия" rules={[{ required: true, whitespace: true }]}>
-            <Input autoComplete="family-name" />
-          </Form.Item>
-          <Form.Item name="first_name" label="Имя" rules={[{ required: true, whitespace: true }]}>
-            <Input autoComplete="given-name" />
+          <Form.Item name="role" label="Роль" rules={[{ required: true }]}>
+            <Select options={roleOptions} />
           </Form.Item>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            Пароль генерируется автоматически и отправляется на email (если на сервере настроен SMTP).
+            На почту уйдёт письмо с ролью и ссылкой. Человек дважды введёт пароль, после этого учётка откроется.
           </Typography.Paragraph>
-          <Form.Item name="role" label="Роль" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: 'SUPERADMIN', value: 'SUPERADMIN' },
-                { label: 'STREAM_MANAGER', value: 'STREAM_MANAGER' },
-                { label: 'OPERATOR', value: 'OPERATOR' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="is_active" label="Активен" valuePropName="checked">
-            <Switch />
-          </Form.Item>
         </Form>
       </Modal>
 
@@ -495,13 +535,7 @@ export const SuperadminPage: React.FC = () => {
             <Input.Password />
           </Form.Item>
           <Form.Item name="role" label="Роль" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: 'SUPERADMIN', value: 'SUPERADMIN' },
-                { label: 'STREAM_MANAGER', value: 'STREAM_MANAGER' },
-                { label: 'OPERATOR', value: 'OPERATOR' },
-              ]}
-            />
+            <Select options={roleOptions} />
           </Form.Item>
           <Form.Item name="is_active" label="Активен" valuePropName="checked">
             <Switch />

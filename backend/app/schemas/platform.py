@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.models.enums import UserRole
 
@@ -28,20 +28,58 @@ class AnalyticsIn(BaseModel):
 
 
 class InviteCreate(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
+    email: EmailStr
     role: UserRole
+    full_name: str = Field(min_length=3, max_length=200)
+
+    @field_validator("full_name")
+    @classmethod
+    def full_name_has_surname_and_given_name(cls, value: str) -> str:
+        text = " ".join(value.split())
+        parts = text.split(" ")
+        if len(parts) < 2:
+            raise ValueError("Укажите фамилию и имя")
+        last_name = parts[0]
+        first_name = " ".join(parts[1:])
+        if len(last_name) > 100 or len(first_name) > 100:
+            raise ValueError("ФИО слишком длинное")
+        return text
 
 
 class InviteCreatedOut(BaseModel):
-    token: str
-    invite_url_hint: str
+    email: str
+    role: UserRole
+    full_name: str
+    expires_at: datetime
+    message: str
+
+
+class InvitePendingOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str
+    role: UserRole
+    expires_at: datetime
+    created_at: datetime
+
+
+class InvitePreviewOut(BaseModel):
+    ok: bool
+    full_name: str | None = None
+    email: str | None = None
+    role: UserRole | None = None
 
 
 class AcceptInviteIn(BaseModel):
-    token: str = Field(min_length=10, max_length=64)
+    token: str = Field(min_length=10, max_length=128)
     password: str = Field(min_length=8, max_length=128)
-    first_name: str = Field(min_length=1, max_length=100)
-    last_name: str = Field(min_length=1, max_length=100)
+    password_confirm: str = Field(min_length=8, max_length=128)
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> "AcceptInviteIn":
+        if self.password != self.password_confirm:
+            raise ValueError("Пароли должны совпадать")
+        return self
 
 
 class ChecklistOut(BaseModel):

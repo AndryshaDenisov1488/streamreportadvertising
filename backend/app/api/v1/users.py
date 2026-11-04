@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import SuperAdminUser
 from app.db.session import get_db
-from app.schemas.platform import InviteCreate, InviteCreatedOut
+from app.schemas.platform import InviteCreate, InviteCreatedOut, InvitePendingOut
 from app.schemas.user import UserCreate, UserCreatedOut, UserOut, UserUpdate
 from app.services import invite_service, user_service
 
@@ -21,16 +21,38 @@ async def list_users(
     return [UserOut.model_validate(u) for u in users]
 
 
+@router.get("/invites", response_model=list[InvitePendingOut])
+async def list_invites(
+    _: SuperAdminUser,
+    session: AsyncSession = Depends(get_db),
+) -> list[InvitePendingOut]:
+    invites = await invite_service.list_pending_invites(session)
+    return [
+        InvitePendingOut(
+            id=invite.id,
+            email=invite.email,
+            full_name=invite_service.invite_full_name(invite),
+            role=invite.role,
+            expires_at=invite.expires_at,
+            created_at=invite.created_at,
+        )
+        for invite in invites
+    ]
+
+
 @router.post("/invites", response_model=InviteCreatedOut)
 async def create_invite(
     body: InviteCreate,
     actor: SuperAdminUser,
     session: AsyncSession = Depends(get_db),
 ) -> InviteCreatedOut:
-    token = await invite_service.create_invite(session, actor_id=actor.id, data=body)
+    invite = await invite_service.create_invite(session, actor_id=actor.id, data=body)
     return InviteCreatedOut(
-        token=token,
-        invite_url_hint="POST /api/v1/auth/accept-invite с полями token, password, first_name, last_name",
+        email=invite.email,
+        role=invite.role,
+        full_name=invite_service.invite_full_name(invite),
+        expires_at=invite.expires_at,
+        message="Письмо со ссылкой для задания пароля отправлено",
     )
 
 

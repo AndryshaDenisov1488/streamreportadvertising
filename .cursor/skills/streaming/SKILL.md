@@ -30,6 +30,7 @@ description: >-
 | Порт | 8010 (Uvicorn) |
 | БД | PostgreSQL: streaming |
 | Systemd | `streaming-backend` |
+| Учётки | Суперадмин вводит ФИО, email и роль. Письмо содержит роль и ссылку `/accept-invite`. Человек дважды задаёт пароль, сессия открывается сразу. Нужны `APP_PUBLIC_BASE_URL` и SMTP |
 
 ## Команды
 

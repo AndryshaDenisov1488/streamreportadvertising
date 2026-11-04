@@ -9,6 +9,7 @@ type AuthState = {
   user: UserOut | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
+  adoptSession: (nextUser: UserOut) => void
   logout: () => Promise<void>
   refreshMe: () => Promise<void>
 }
@@ -47,6 +48,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     message.success(`Здравствуйте, ${userDisplayName(data.user)}`)
   }, [])
 
+  const adoptSession = useCallback((nextUser: UserOut) => {
+    setUser(nextUser)
+    message.success(`Здравствуйте, ${userDisplayName(nextUser)}`)
+  }, [])
+
   const logout = useCallback(async () => {
     try {
       await logoutRequest()
@@ -62,10 +68,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       loading,
       login,
+      adoptSession,
       logout,
       refreshMe,
     }),
-    [user, loading, login, logout, refreshMe],
+    [user, loading, login, adoptSession, logout, refreshMe],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -40,6 +40,8 @@ class UserInvite(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(320))
+    first_name: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    last_name: Mapped[str] = mapped_column(String(100), default="", nullable=False)
     role: Mapped[UserRole] = mapped_column(
         SAEnum(UserRole, name="userrole", create_constraint=False, native_enum=True),
         nullable=False,

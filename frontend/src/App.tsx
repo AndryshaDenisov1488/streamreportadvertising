@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { AcceptInvitePage } from '@/pages/AcceptInvitePage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { ManagerStreamPage } from '@/pages/ManagerStreamPage'
@@ -23,6 +24,7 @@ export const App: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/accept-invite" element={<AcceptInvitePage />} />
       <Route
         path="/first-login"
         element={

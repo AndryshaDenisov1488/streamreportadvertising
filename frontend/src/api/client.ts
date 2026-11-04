@@ -263,6 +263,33 @@ export const validatePasswordResetTokenRequest = async (token: string) => {
   })) as { ok: boolean }
 }
 
+export const previewInviteRequest = async (token: string) => {
+  const q = new URLSearchParams({ token })
+  return (await apiFetch(`/auth/invite/preview?${q.toString()}`, {
+    skipAuth: true,
+  })) as {
+    ok: boolean
+    full_name?: string | null
+    email?: string | null
+    role?: import('@/api/types').UserRole | null
+  }
+}
+
+export const acceptInviteRequest = async (payload: {
+  token: string
+  password: string
+  password_confirm: string
+}) => {
+  const data = (await apiFetch('/auth/accept-invite', {
+    method: 'POST',
+    skipAuth: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })) as { access_token: string; user: import('@/api/types').UserOut }
+  setAccessToken(data.access_token)
+  return data
+}
+
 export const resetPasswordRequest = async (payload: {
   token: string
   new_password: string
