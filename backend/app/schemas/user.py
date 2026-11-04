@@ -11,6 +11,7 @@ from app.models.enums import UserRole
 class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
+    username: str | None = None
     first_name: str
     last_name: str
     phone: str | None = None

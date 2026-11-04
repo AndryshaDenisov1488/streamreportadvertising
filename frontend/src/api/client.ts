@@ -241,7 +241,7 @@ export const loginRequest = async (email: string, password: string) => {
     method: 'POST',
     skipAuth: true,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ login: email, password }),
   })) as { access_token: string; user: import('@/api/types').UserOut }
   setAccessToken(data.access_token)
   return data

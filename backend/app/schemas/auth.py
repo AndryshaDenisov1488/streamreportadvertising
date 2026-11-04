@@ -4,8 +4,19 @@ from app.schemas.user import UserOut
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    """Поле login или прежнее email: и логин, и почта."""
+
+    login: str | None = Field(default=None, max_length=320)
+    email: str | None = Field(default=None, max_length=320)
     password: str
+
+    @model_validator(mode="after")
+    def require_login_or_email(self) -> "LoginRequest":
+        raw = (self.login or self.email or "").strip()
+        if not raw:
+            raise ValueError("Укажите логин или почту")
+        self.login = raw
+        return self
 
 
 class ForgotPasswordIn(BaseModel):

@@ -3,6 +3,7 @@ export type UserRole = 'SUPERADMIN' | 'STREAM_MANAGER' | 'OPERATOR'
 export type UserOut = {
   id: string
   email: string
+  username?: string | null
   first_name: string
   last_name: string
   /** «Фамилия Имя», для обращения в интерфейсе */

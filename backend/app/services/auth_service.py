@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -17,9 +17,33 @@ from app.models.user import RefreshToken, User
 from app.services.audit_service import write_audit
 
 
-async def authenticate_user(session: AsyncSession, email: str, password: str) -> User | None:
-    result = await session.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
+def pick_user_for_login(users: list[User], identifier: str) -> User | None:
+    """Один и тот же ввод может совпасть и с логином, и с чужой почтой. Логин важнее."""
+    lowered = identifier.strip().lower()
+    if not lowered:
+        return None
+    by_username = [user for user in users if (user.username or "").lower() == lowered]
+    if by_username:
+        return by_username[0]
+    by_email = [user for user in users if user.email.lower() == lowered]
+    if by_email:
+        return by_email[0]
+    return None
+
+
+async def authenticate_user(session: AsyncSession, identifier: str, password: str) -> User | None:
+    lowered = identifier.strip().lower()
+    if not lowered:
+        return None
+    result = await session.execute(
+        select(User).where(
+            or_(
+                func.lower(User.email) == lowered,
+                func.lower(User.username) == lowered,
+            )
+        )
+    )
+    user = pick_user_for_login(list(result.scalars().all()), lowered)
     if not user or not user.is_active:
         return None
     if not verify_password(password, user.password_hash):
@@ -42,7 +66,7 @@ async def login_user(
 ) -> tuple[User, str, str, datetime]:
     user = await authenticate_user(session, email, password)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный email или пароль")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный логин или пароль")
     _apply_last_login(user, request_ip=request_ip)
     refresh_token, jti, exp = create_refresh_token_payload()
     session.add(

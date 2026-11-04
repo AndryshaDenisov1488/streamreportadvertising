@@ -132,7 +132,7 @@ async def login(
     ua = request.headers.get("user-agent")
     user, access, refresh, _exp = await auth_service.login_user(
         session,
-        email=body.email,
+        email=body.login or "",
         password=body.password,
         request_ip=client_host,
         user_agent=ua,
