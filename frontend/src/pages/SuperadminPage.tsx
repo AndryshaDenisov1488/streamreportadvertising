@@ -130,6 +130,8 @@ export const SuperadminPage: React.FC = () => {
     mutationFn: async (values: { email: string; full_name: string; role: UserRole }) => {
       await apiFetch('/users/invites', {
         method: 'POST',
+        timeoutMs: 90_000,
+        timeoutMessage: 'Сервер не подтвердил отправку письма. Проверьте список приглашений и почту получателя перед повторной отправкой.',
         body: JSON.stringify({
           email: values.email,
           full_name: values.full_name,
@@ -445,7 +447,7 @@ export const SuperadminPage: React.FC = () => {
         onCancel={() => setUserOpen(false)}
         onOk={async () => {
           const v = await createForm.validateFields()
-          await createMut.mutateAsync({
+          createMut.mutate({
             email: v.email,
             full_name: v.full_name,
             role: v.role,

@@ -2,6 +2,7 @@
 
 import asyncio
 import html
+import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -13,6 +14,8 @@ from app.core.config import get_settings
 from app.models.enums import UserRole
 from app.services.email_html_layout import wrap_email_html
 from app.services.welcome_email_service import role_label_ru
+
+log = logging.getLogger("uvicorn.error")
 
 
 def require_invite_mail_ready() -> str:
@@ -56,17 +59,23 @@ def _send_invite_sync(
     msg["To"] = to_addr
     msg.attach(MIMEText(body_html, "html", "utf-8"))
     if use_ssl:
-        with smtplib.SMTP_SSL(host, port, timeout=60) as smtp:
+        with smtplib.SMTP_SSL(host, port, timeout=5) as smtp:
+            # DNS may return unreachable addresses: fail over quickly, allow time for delivery.
+            smtp.sock.settimeout(30)
             if user and password:
                 smtp.login(user, password)
             smtp.send_message(msg, from_addr=from_addr, to_addrs=[to_addr])
+            log.info("Invite message accepted by SMTP for %s", to_addr)
         return
-    with smtplib.SMTP(host, port, timeout=60) as smtp:
+    with smtplib.SMTP(host, port, timeout=5) as smtp:
+        # DNS may return unreachable addresses: fail over quickly, allow time for delivery.
+        smtp.sock.settimeout(30)
         if use_tls:
             smtp.starttls()
         if user and password:
             smtp.login(user, password)
         smtp.send_message(msg, from_addr=from_addr, to_addrs=[to_addr])
+        log.info("Invite message accepted by SMTP for %s", to_addr)
 
 
 async def send_invite_email(

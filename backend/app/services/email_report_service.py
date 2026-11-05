@@ -58,12 +58,16 @@ def _send_smtp_sync(
     part.add_header("Content-Disposition", "attachment", filename=attachment_name)
     msg.attach(part)
     if use_ssl:
-        with smtplib.SMTP_SSL(host, port, timeout=60) as smtp:
+        with smtplib.SMTP_SSL(host, port, timeout=5) as smtp:
+            # DNS may return unreachable addresses: fail over quickly, allow time for delivery.
+            smtp.sock.settimeout(30)
             if user and password:
                 smtp.login(user, password)
             smtp.send_message(msg, from_addr=from_addr, to_addrs=to_addrs)
     else:
-        with smtplib.SMTP(host, port, timeout=60) as smtp:
+        with smtplib.SMTP(host, port, timeout=5) as smtp:
+            # DNS may return unreachable addresses: fail over quickly, allow time for delivery.
+            smtp.sock.settimeout(30)
             if use_tls:
                 smtp.starttls()
             if user and password:

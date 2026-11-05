@@ -12,7 +12,11 @@ export const setAccessToken = (token: string | null) => {
   localStorage.setItem(ACCESS_KEY, token)
 }
 
-type FetchOptions = RequestInit & { skipAuth?: boolean }
+type FetchOptions = RequestInit & {
+  skipAuth?: boolean
+  timeoutMs?: number
+  timeoutMessage?: string
+}
 
 export const getOrCreateRequestId = (): string => {
   try {
@@ -190,6 +194,35 @@ export const uploadLogosBatchRequest = async (files: File[]) => {
 }
 
 export const apiFetch = async (path: string, options: FetchOptions = {}) => {
+  const { timeoutMs, timeoutMessage, ...requestOptions } = options
+  if (!timeoutMs) {
+    return executeApiFetch(path, requestOptions)
+  }
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  if (options.signal?.aborted) {
+    abort()
+  }
+  options.signal?.addEventListener('abort', abort, { once: true })
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    // Bound the whole operation, including token refresh and reading the response.
+    return await Promise.race([
+      executeApiFetch(path, { ...requestOptions, signal: controller.signal }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(timeoutMessage ?? 'Сервер не ответил вовремя'))
+          controller.abort()
+        }, timeoutMs)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+    options.signal?.removeEventListener('abort', abort)
+  }
+}
+
+const executeApiFetch = async (path: string, options: FetchOptions) => {
   const { skipAuth, headers, body, ...rest } = options
   const url = `${API_BASE}${path}`
   const pathOnly = path.split('?')[0]

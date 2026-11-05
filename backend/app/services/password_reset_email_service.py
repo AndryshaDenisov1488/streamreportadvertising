@@ -32,12 +32,16 @@ def _send_password_reset_sync(
     msg["To"] = to_addr
     msg.attach(MIMEText(body_html, "html", "utf-8"))
     if use_ssl:
-        with smtplib.SMTP_SSL(host, port, timeout=60) as smtp:
+        with smtplib.SMTP_SSL(host, port, timeout=5) as smtp:
+            # DNS may return unreachable addresses: fail over quickly, allow time for delivery.
+            smtp.sock.settimeout(30)
             if user and password:
                 smtp.login(user, password)
             smtp.send_message(msg, from_addr=from_addr, to_addrs=[to_addr])
     else:
-        with smtplib.SMTP(host, port, timeout=60) as smtp:
+        with smtplib.SMTP(host, port, timeout=5) as smtp:
+            # DNS may return unreachable addresses: fail over quickly, allow time for delivery.
+            smtp.sock.settimeout(30)
             if use_tls:
                 smtp.starttls()
             if user and password:
