@@ -56,3 +56,15 @@ transaction. Stop relevant writers for a coordinated migration snapshot.
    together in recovery storage before replacement; check integrity and owner.
 5. Start services, check journals, login/registration, uploads/results and HTTP
    health. Keep the pre-restore backup until the recovery is accepted.
+
+## Certificate renewal through the existing VPN
+
+Install `certbot-proxy.conf` as
+`/etc/systemd/system/certbot.service.d/proxy.conf`, then run
+`systemctl daemon-reload`. It orders Certbot after the existing
+`tinyproxy-cursorvpn.service` and uses `http://10.200.0.2:8888` for HTTP/HTTPS
+egress, bypassing the proxy for localhost. Preserve the existing ACME account
+under `/etc/letsencrypt/accounts` from a verified backup along with certificates
+and renewal configs; do not register a new account or accept new terms as an
+automatic migration step. Check `certbot renew --dry-run` with the same proxy
+environment after restoring the account and confirm `certbot.timer` is enabled.
