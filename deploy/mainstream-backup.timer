@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Mainstream verified backup at 03:30 Moscow
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Moscow
+Persistent=true
+Unit=mainstream-backup.service
+
+[Install]
+WantedBy=timers.target
