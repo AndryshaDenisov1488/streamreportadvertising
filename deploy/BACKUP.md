@@ -15,6 +15,8 @@ and disk space regularly.
 
 Required state includes Cursor agent runtime/config, `/root/cursor.conf`,
 Cursor VPN tinyproxy/network-namespace configuration and AppArmor profiles.
+Root SSH access is covered by `/root/.ssh/authorized_keys`; root private SSH keys
+are not included. Review authorized keys before restoring access on another host.
 `/etc/wireguard` is included when present. Missing required paths fail the backup,
 so install the actual migrated runtime before the first run. PostgreSQL global
 roles and grants are saved in protected `postgres-globals.sql`; it may contain

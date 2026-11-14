@@ -73,6 +73,7 @@ sources=(
     etc/gshadow
     usr/local/sbin
     root/cursor.conf
+    root/.ssh/authorized_keys
     root/.local/share/cursor-agent
     root/.local/bin/agent
     root/.local/bin/cursor-agent
