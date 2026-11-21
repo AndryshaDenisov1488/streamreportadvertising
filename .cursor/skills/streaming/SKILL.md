@@ -57,3 +57,5 @@ journalctl -u streaming-backend -f
 | XII | Пофайловый анализ |
 | **XIII** | **Полный исходный код** |
 | XIV | README, ТЗ, приложения |
+
+GET /health/ready returns 503 when the database is unavailable or its Alembic revisions differ from the installed heads.
